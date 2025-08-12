@@ -193,7 +193,7 @@ val downloadDependencies = tasks.register("downloadDependencies") {
             if (!targetFile.exists()) {
                 try {
                     println("Downloading ${fileName}...")
-                    java.net.URL(url).openStream().use { input ->
+                    java.net.URI(url).toURL().openStream().use { input ->
                         targetFile.outputStream().use { output ->
                             input.copyTo(output)
                         }
@@ -334,23 +334,79 @@ val buildGradlePlugins = tasks.register<Exec>("buildGradlePlugins") {
                         }
                     }
                     else -> {
-                        val process = ProcessBuilder("gradle", "clean", "jar")
-                            .directory(pluginDir)
-                            .redirectErrorStream(true)
-                            .start()
+                        // For WebOfTrust and Freetalk which have Gradle 9 incompatible build files,
+                        // we need special handling. These plugins use sourceCompatibility = 7 
+                        // which is not supported by Gradle 9 or Java 21.
                         
-                        val output = process.inputStream.bufferedReader().readText()
-                        val exitCode = process.waitFor()
+                        println("Note: ${pluginDir.name} requires Gradle wrapper for proper build.")
+                        println("The plugin uses Java 7 compatibility which is not supported by Gradle 9.")
+                        println("Skipping ${pluginDir.name} - please add a Gradle wrapper to this plugin")
+                        println("or update its build.gradle to use Java 8+ compatibility.")
                         
-                        if (exitCode != 0) {
-                            println("Warning: Failed to build ${pluginDir.name} with gradle (exit code: $exitCode)")
-                            if (System.getProperty("gradle.verbose", "false") == "true") {
-                                println("Build output for ${pluginDir.name}:")
-                                println(output)
-                                println("--- End of output for ${pluginDir.name} ---")
+                        // Alternative: Try to build with compatibility override as best effort
+                        val tempSettingsFile = File(pluginDir, "settings.gradle")
+                        val settingsExists = tempSettingsFile.exists()
+                        
+                        if (!settingsExists) {
+                            tempSettingsFile.writeText("// Temporary settings file for isolated build\n")
+                        }
+                        
+                        try {
+                            // Create a wrapper script that patches the build file on the fly
+                            val patchedBuildFile = File(pluginDir, "build.gradle.patched")
+                            val originalBuildFile = File(pluginDir, "build.gradle")
+                            
+                            // Read original build file and patch the compatibility lines
+                            val buildContent = originalBuildFile.readText()
+                                .replace("sourceCompatibility = targetCompatibility = 7", 
+                                        "sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8")
+                                .replace("sourceCompatibility = 7", "sourceCompatibility = JavaVersion.VERSION_1_8")
+                                .replace("targetCompatibility = 7", "targetCompatibility = JavaVersion.VERSION_1_8")
+                            
+                            patchedBuildFile.writeText(buildContent)
+                            
+                            // Temporarily rename the original build file and use the patched one
+                            val backupFile = File(pluginDir, "build.gradle.original")
+                            originalBuildFile.renameTo(backupFile)
+                            patchedBuildFile.renameTo(originalBuildFile)
+                            
+                            val gradleArgs = mutableListOf("gradle")
+                            gradleArgs.add("--no-daemon")
+                            gradleArgs.add("clean")
+                            gradleArgs.add("jar")
+                            
+                            val process = ProcessBuilder(gradleArgs)
+                                .directory(pluginDir)
+                                .redirectErrorStream(true)
+                                .start()
+                        
+                            val output = process.inputStream.bufferedReader().readText()
+                            val exitCode = process.waitFor()
+                            
+                            // Restore original build file
+                            val restoredBackupFile = File(pluginDir, "build.gradle.original")
+                            if (restoredBackupFile.exists()) {
+                                originalBuildFile.delete()
+                                restoredBackupFile.renameTo(originalBuildFile)
                             }
-                        } else {
-                            println("Successfully built ${pluginDir.name}")
+                            
+                            if (exitCode != 0) {
+                                println("Warning: Failed to build ${pluginDir.name} with gradle (exit code: $exitCode)")
+                                if (System.getProperty("gradle.verbose", "false") == "true") {
+                                    println("Build output for ${pluginDir.name}:")
+                                    println(output)
+                                    println("--- End of output for ${pluginDir.name} ---")
+                                }
+                            } else {
+                                println("Successfully built ${pluginDir.name}")
+                            }
+                        } catch (e: Exception) {
+                            println("Error attempting to build ${pluginDir.name}: ${e.message}")
+                        } finally {
+                            // Clean up temporary settings file
+                            if (!settingsExists) {
+                                tempSettingsFile.delete()
+                            }
                         }
                     }
                 }
