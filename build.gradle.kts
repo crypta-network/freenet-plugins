@@ -13,7 +13,7 @@ object Config {
     const val DB4O_JAR_NAME = "db4o-7.4.jar"
     
     val PLUGINS_NEEDING_WRAPPER = listOf("plugin-WebOfTrust", "plugin-Freetalk")
-    val PLUGINS_NEEDING_JAVA_PATCH_ONLY = listOf("plugin-FlogHelper")
+    val PLUGINS_NEEDING_JAVA_PATCH_ONLY = listOf("plugin-FlogHelper", "plugin-KeyUtils")
     val ANT_PLUGINS_NEEDING_DB4O = listOf("plugin-XMLLibrarian", "plugin-XMLSpider")
     val ANT_PLUGINS_NEEDING_DB4O_JAR_ONLY = listOf("plugin-Freereader")
     val GRADLE_PLUGINS_NEEDING_DB4O = listOf("plugin-WebOfTrust", "plugin-Freetalk")
@@ -151,6 +151,20 @@ fun patchJavaVersion(content: String, isGradle: Boolean): String {
             .replace(Regex("\\-Djavac\\.source\\.version=\"?1\\.5\"?"), "-Djavac.source.version=8")
             .replace(Regex("\\-Djavac\\.target\\.version=\"?1\\.5\"?"), "-Djavac.target.version=8")
     }
+}
+
+fun patchKeyUtilsBuildGradle(content: String): String {
+    return content
+        .replace(Regex("sourceCompatibility\\s*=\\s*1\\.7"), "sourceCompatibility = 1.8")
+        .replace(Regex("targetCompatibility\\s*=\\s*1\\.7"), "targetCompatibility = 1.8")
+        .replace(
+            "compile group: 'org.freenetproject', name: 'fred', version: 'build+'",
+            "compileOnly files('../fred/build/libs/freenet.jar')\n    compileOnly files('../fred/lib/freenet-ext.jar')"
+        )
+        .replace(
+            "getMTime(\"src/main/java/plugins/KeyUtils/Version.java\")",
+            "new Date()"
+        )
 }
 
 // Task: Build Fred (Freenet core dependencies)
@@ -338,7 +352,11 @@ val installGradleWrappers = tasks.register("installGradleWrappers") {
                 val buildGradleFile = File(pluginDir, "build.gradle")
                 if (buildGradleFile.exists()) {
                     val original = buildGradleFile.readText()
-                    val patched = patchJavaVersion(original, true)
+                    val patched = if (pluginName == "plugin-KeyUtils") {
+                        patchKeyUtilsBuildGradle(original)
+                    } else {
+                        patchJavaVersion(original, true)
+                    }
                     if (original != patched) {
                         File(pluginDir, "build.gradle.original").writeText(original)
                         buildGradleFile.writeText(patched)
@@ -564,16 +582,16 @@ val buildGradlePlugins = tasks.register("buildGradlePlugins") {
             val gradleArgs = when {
                 !isWindows && gradlewScript.exists() -> {
                     if (skipTests) {
-                        listOf("bash", gradlewScript.absolutePath, "clean", "jar", "-x", "compileTestJava", "-x", "test")
+                        listOf("bash", gradlewScript.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar", "-x", "compileTestJava", "-x", "test")
                     } else {
-                        listOf("bash", gradlewScript.absolutePath, "clean", "jar")
+                        listOf("bash", gradlewScript.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar")
                     }
                 }
                 isWindows && gradlewBat.exists() -> {
                     if (skipTests) {
-                        listOf("cmd", "/c", gradlewBat.absolutePath, "clean", "jar", "-x", "compileTestJava", "-x", "test")
+                        listOf("cmd", "/c", gradlewBat.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar", "-x", "compileTestJava", "-x", "test")
                     } else {
-                        listOf("cmd", "/c", gradlewBat.absolutePath, "clean", "jar")
+                        listOf("cmd", "/c", gradlewBat.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar")
                     }
                 }
                 else -> {
@@ -780,7 +798,8 @@ val collectJars = tasks.register("collectJars") {
         allPlugins.forEach { plugin ->
             val jarFiles = fileTree(plugin.dir) {
                 include("**/*.jar")
-                exclude("**/gradle-wrapper.jar", "**/lib/**", "**/libs/**", "**/db4o-7.4/**", "**/gradle/**")
+                exclude("**/gradle-wrapper.jar", "**/lib/**", "**/db4o-7.4/**", "**/gradle/**")
+                exclude("**/gradle/wrapper/**", "**/gradle/gradle-witness.jar")
             }
             
             jarFiles.forEach { jarFile ->

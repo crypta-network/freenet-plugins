@@ -80,6 +80,13 @@ The build system includes special handling for complex plugins:
 - **Wrapper source for other plugins**: Serves as source for Gradle wrapper installation for plugins needing them
 - **Separate cleanup handling**: Uses dedicated cleanup logic that preserves original wrapper files while restoring build.gradle
 
+#### plugin-KeyUtils Integration
+- **Dependency resolution fixes**: Replaces unresolvable Maven dependency `fred:build+` with local file dependencies to freenet.jar and freenet-ext.jar
+- **Java compatibility fixes**: Updates Java version from 1.7 to 1.8 for modern compatibility
+- **Build isolation enhancement**: Uses `-p` parameter for proper Gradle project isolation to prevent parent build interference
+- **File path resolution fixes**: Replaces problematic `getMTime()` file access with `new Date()` to avoid working directory issues
+- **Non-invasive patching**: All modifications temporarily applied during build and automatically restored after completion
+
 #### db4o-7.4 Database Integration
 The build system provides comprehensive db4o database support for plugins that require it:
 
@@ -102,8 +109,8 @@ The build system provides comprehensive db4o database support for plugins that r
 ### Build Output
 - All built JARs are collected in `./build/libs/` with plugin-specific names
 - Build artifacts are isolated and don't affect git status
-- Successfully builds 17/19 plugins including all db4o-dependent plugins (XMLLibrarian, XMLSpider, WebOfTrust, Freetalk, Freereader)
-- Advanced compatibility fixes enable Library, SNMP, JSTUN, and FlogHelper plugins to build with current Freenet API
+- Successfully builds 18/19 plugins including all db4o-dependent plugins (XMLLibrarian, XMLSpider, WebOfTrust, Freetalk, Freereader)
+- Advanced compatibility fixes enable Library, SNMP, JSTUN, FlogHelper, and KeyUtils plugins to build with current Freenet API
 - JARs contain authentic compiled functionality (larger sizes for db4o plugins reflect real database integration)
 - Plugins with extensive API incompatibilities (like plugin-Echo) are excluded to maintain non-invasive build approach
 
