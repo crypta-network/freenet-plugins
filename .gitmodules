@@ -1,0 +1,66 @@
+[submodule "projects/plugin-WebOfTrust"]
+	path = projects/plugin-WebOfTrust
+	url = https://github.com/hyphanet/plugin-WebOfTrust.git
+[submodule "projects/plugin-Freemail"]
+	path = projects/plugin-Freemail
+	url = https://github.com/hyphanet/plugin-Freemail.git
+[submodule "projects/plugin-Freetalk"]
+	path = projects/plugin-Freetalk
+	url = https://github.com/hyphanet/plugin-Freetalk.git
+[submodule "projects/plugin-Library"]
+	path = projects/plugin-Library
+	url = https://github.com/hyphanet/plugin-Library.git
+[submodule "projects/plugin-KeyUtils"]
+	path = projects/plugin-KeyUtils
+	url = https://github.com/hyphanet/plugin-KeyUtils.git
+[submodule "projects/plugin-FlogHelper"]
+	path = projects/plugin-FlogHelper
+	url = https://github.com/hyphanet/plugin-FlogHelper.git
+[submodule "projects/plugin-Spider"]
+	path = projects/plugin-Spider
+	url = https://github.com/hyphanet/plugin-Spider.git
+[submodule "projects/plugin-Freereader"]
+	path = projects/plugin-Freereader
+	url = https://github.com/hyphanet/plugin-Freereader.git
+[submodule "projects/plugin-UPnP"]
+	path = projects/plugin-UPnP
+	url = https://github.com/hyphanet/plugin-UPnP.git
+[submodule "projects/plugin-XMLSpider"]
+	path = projects/plugin-XMLSpider
+	url = https://github.com/hyphanet/plugin-XMLSpider.git
+[submodule "projects/plugin-XMLLibrarian"]
+	path = projects/plugin-XMLLibrarian
+	url = https://github.com/hyphanet/plugin-XMLLibrarian.git
+[submodule "projects/plugin-HelloWorld"]
+	path = projects/plugin-HelloWorld
+	url = https://github.com/hyphanet/plugin-HelloWorld.git
+[submodule "projects/plugin-JSTUN"]
+	path = projects/plugin-JSTUN
+	url = https://github.com/hyphanet/plugin-JSTUN.git
+[submodule "projects/plugin-ThawIndexBrowser"]
+	path = projects/plugin-ThawIndexBrowser
+	url = https://github.com/hyphanet/plugin-ThawIndexBrowser.git
+[submodule "projects/plugin-MDNSDiscovery"]
+	path = projects/plugin-MDNSDiscovery
+	url = https://github.com/hyphanet/plugin-MDNSDiscovery.git
+[submodule "projects/plugin-Echo"]
+	path = projects/plugin-Echo
+	url = https://github.com/hyphanet/plugin-Echo.git
+[submodule "projects/plugin-Librarian"]
+	path = projects/plugin-Librarian
+	url = https://github.com/hyphanet/plugin-Librarian.git
+[submodule "projects/plugin-HelloFCP"]
+	path = projects/plugin-HelloFCP
+	url = https://github.com/hyphanet/plugin-HelloFCP.git
+[submodule "projects/plugin-old-bookmarkplugin"]
+	path = projects/plugin-old-bookmarkplugin
+	url = https://github.com/hyphanet/plugin-old-bookmarkplugin.git
+[submodule "projects/plugin-SNMP"]
+	path = projects/plugin-SNMP
+	url = https://github.com/hyphanet/plugin-SNMP.git
+[submodule "projects/plugin-TestGallery"]
+	path = projects/plugin-TestGallery
+	url = https://github.com/hyphanet/plugin-TestGallery.git
+[submodule "projects/plugin-Freemail-v0.1"]
+	path = projects/plugin-Freemail-v0.1
+	url = https://github.com/hyphanet/plugin-Freemail-v0.1.git
