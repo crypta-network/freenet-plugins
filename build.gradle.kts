@@ -13,6 +13,7 @@ object Config {
     const val DB4O_JAR_NAME = "db4o-7.4.jar"
     
     val PLUGINS_NEEDING_WRAPPER = listOf("plugin-WebOfTrust", "plugin-Freetalk")
+    val PLUGINS_NEEDING_JAVA_PATCH_ONLY = listOf("plugin-FlogHelper")
     val ANT_PLUGINS_NEEDING_DB4O = listOf("plugin-XMLLibrarian", "plugin-XMLSpider")
     val ANT_PLUGINS_NEEDING_DB4O_JAR_ONLY = listOf("plugin-Freereader")
     val GRADLE_PLUGINS_NEEDING_DB4O = listOf("plugin-WebOfTrust", "plugin-Freetalk")
@@ -328,6 +329,24 @@ val installGradleWrappers = tasks.register("installGradleWrappers") {
                 }
             }
         }
+        
+        // Handle plugins that only need Java version patching (no wrapper installation)
+        Config.PLUGINS_NEEDING_JAVA_PATCH_ONLY.forEach { pluginName ->
+            val pluginDir = file("projects/${pluginName}")
+            if (pluginDir.exists()) {
+                // Patch build.gradle for Java 8 compatibility
+                val buildGradleFile = File(pluginDir, "build.gradle")
+                if (buildGradleFile.exists()) {
+                    val original = buildGradleFile.readText()
+                    val patched = patchJavaVersion(original, true)
+                    if (original != patched) {
+                        File(pluginDir, "build.gradle.original").writeText(original)
+                        buildGradleFile.writeText(patched)
+                        println("Patched build.gradle for ${pluginName}")
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -361,6 +380,20 @@ val cleanInstalledWrappers = tasks.register("cleanInstalledWrappers") {
                 if (db4oDir.exists() && Files.isSymbolicLink(db4oDir.toPath())) {
                     db4oDir.delete()
                     db4oDir.mkdir()
+                }
+            }
+        }
+        
+        // Handle plugins that only need Java version patching cleanup (restore build.gradle only)
+        Config.PLUGINS_NEEDING_JAVA_PATCH_ONLY.forEach { pluginName ->
+            val pluginDir = file("projects/${pluginName}")
+            if (pluginDir.exists()) {
+                // Restore original build.gradle
+                val originalBuildGradle = File(pluginDir, "build.gradle.original")
+                if (originalBuildGradle.exists()) {
+                    originalBuildGradle.copyTo(File(pluginDir, "build.gradle"), overwrite = true)
+                    originalBuildGradle.delete()
+                    println("Restored original build.gradle for ${pluginName}")
                 }
             }
         }
@@ -517,6 +550,7 @@ val buildGradlePlugins = tasks.register("buildGradlePlugins") {
     description = "Build all Gradle-based plugins"
     group = "build"
     dependsOn(buildFred, downloadDependencies, installGradleWrappers, setupGradlePluginDb4o)
+    finalizedBy(cleanInstalledWrappers)
     
     doLast {
         gradlePlugins.forEach { plugin ->
