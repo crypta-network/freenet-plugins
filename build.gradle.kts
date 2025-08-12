@@ -20,6 +20,7 @@ object Config {
     
     val EXTERNAL_DEPENDENCIES = mapOf(
         "snakeyaml-1.29.jar" to "https://repo1.maven.org/maven2/org/yaml/snakeyaml/1.29/snakeyaml-1.29.jar",
+        "snakeyaml-1.5.jar" to "https://repo1.maven.org/maven2/org/yaml/snakeyaml/1.5/snakeyaml-1.5.jar",
         "xom-1.3.8.jar" to "https://repo1.maven.org/maven2/xom/xom/1.3.8/xom-1.3.8.jar",
         "bcprov-jdk15on-1.70.jar" to "https://repo1.maven.org/maven2/org/bouncycastle/bcprov-jdk15on/1.70/bcprov-jdk15on-1.70.jar"
     )
@@ -222,11 +223,11 @@ val downloadDependencies = tasks.register("downloadDependencies") {
 
 fun setupPluginDependencies() {
     // Library plugin
-    val libraryTmp = file("projects/plugin-Library/tmp")
-    libraryTmp.mkdirs()
-    val snakeYamlSource = file("${buildDepsDir}/snakeyaml-1.29.jar")
+    val libraryLib = file("projects/plugin-Library/lib")
+    libraryLib.mkdirs()
+    val snakeYamlSource = file("${buildDepsDir}/snakeyaml-1.5.jar")
     if (snakeYamlSource.exists()) {
-        snakeYamlSource.copyTo(file("projects/plugin-Library/tmp/snakeyaml-1.5.jar"), overwrite = true)
+        snakeYamlSource.copyTo(file("projects/plugin-Library/lib/snakeyaml-1.5.jar"), overwrite = true)
     }
     
     // Echo plugin
@@ -573,6 +574,47 @@ val buildAntPlugins = tasks.register("buildAntPlugins") {
                 
                 if (executeCommand(antCommand, workingDir = plugin.dir) == 0) {
                     println("Successfully built ${plugin.name}")
+                }
+            } else if (plugin.name == "plugin-Library") {
+                // Special handling for plugin-Library - fix ProgressTracker generics compatibility
+                val sourceFile = File(plugin.dir, "src/plugins/Library/util/SkeletonBTreeMap.java")
+                val tempSourceDir = File(buildDir, "temp-build-files/plugin-Library/src/plugins/Library/util")
+                tempSourceDir.mkdirs()
+                val tempSourceFile = File(tempSourceDir, "SkeletonBTreeMap.java")
+                
+                // Create a patched version with correct generic types
+                val content = sourceFile.readText()
+                    .replace("Map<PullTask<SkeletonNode>, ProgressTracker<SkeletonNode, ?>> ids = null;", 
+                            "Map<PullTask<SkeletonNode>, ProgressTracker<SkeletonNode, ? extends Progress>> ids = null;")
+                    .replace("ProgressTracker<SkeletonNode, ?> ntracker = null;;", 
+                            "ProgressTracker<SkeletonNode, ? extends Progress> ntracker = null;")
+                    .replace("ids = new LinkedHashMap<PullTask<SkeletonNode>, ProgressTracker<SkeletonNode, ?>>();",
+                            "ids = new LinkedHashMap<PullTask<SkeletonNode>, ProgressTracker<SkeletonNode, ? extends Progress>>();")
+                    .replace("import plugins.Library.util.exec.TaskCompleteException;",
+                            "import plugins.Library.util.exec.TaskCompleteException;\nimport plugins.Library.util.exec.Progress;")
+                tempSourceFile.writeText(content)
+                
+                // Copy the patched file to the plugin's source directory temporarily
+                val originalBackup = File(plugin.dir, "src/plugins/Library/util/SkeletonBTreeMap.java.backup")
+                sourceFile.copyTo(originalBackup, overwrite = true)
+                tempSourceFile.copyTo(sourceFile, overwrite = true)
+                
+                try {
+                    // Standard Ant plugin build
+                    val antCommand = mutableListOf(
+                        "ant", "clean", "dist",
+                        "-Dsource-version=8",
+                        "-Dtarget-version=8",
+                        "-Dant.file.failonerror=false"
+                    )
+                    
+                    if (executeCommand(antCommand, workingDir = plugin.dir) == 0) {
+                        println("Successfully built ${plugin.name}")
+                    }
+                } finally {
+                    // Always restore the original file
+                    originalBackup.copyTo(sourceFile, overwrite = true)
+                    originalBackup.delete()
                 }
             } else {
                 // Standard Ant plugin build
