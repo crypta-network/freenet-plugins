@@ -19,7 +19,6 @@ object Config {
     val ALL_PLUGINS_NEEDING_DB4O = ANT_PLUGINS_NEEDING_DB4O + GRADLE_PLUGINS_NEEDING_DB4O
     
     val EXTERNAL_DEPENDENCIES = mapOf(
-        "snakeyaml-1.29.jar" to "https://repo1.maven.org/maven2/org/yaml/snakeyaml/1.29/snakeyaml-1.29.jar",
         "snakeyaml-1.5.jar" to "https://repo1.maven.org/maven2/org/yaml/snakeyaml/1.5/snakeyaml-1.5.jar",
         "xom-1.3.8.jar" to "https://repo1.maven.org/maven2/xom/xom/1.3.8/xom-1.3.8.jar",
         "bcprov-jdk15on-1.70.jar" to "https://repo1.maven.org/maven2/org/bouncycastle/bcprov-jdk15on/1.70/bcprov-jdk15on-1.70.jar",
@@ -262,13 +261,6 @@ fun setupPluginDependencies() {
         snakeYamlSource.copyTo(file("projects/plugin-Library/lib/snakeyaml-1.5.jar"), overwrite = true)
     }
     
-    // Echo plugin
-    val echoLib = file("projects/plugin-Echo/lib")
-    echoLib.mkdirs()
-    val xomSource = file("${buildDepsDir}/xom-1.3.8.jar")
-    if (xomSource.exists()) {
-        xomSource.copyTo(file("projects/plugin-Echo/lib/xom-1.2b2.jar"), overwrite = true)
-    }
     
     // Freemail BouncyCastle symlink
     val fredBcJar = file("projects/fred/build/output/bcprov-jdk15on-1.59.jar")
