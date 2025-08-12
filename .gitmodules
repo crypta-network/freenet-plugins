@@ -90,3 +90,6 @@
 	path = projects/fred
 	url = https://github.com/hyphanet/fred.git
 	ignore = all
+[submodule "projects/db4o-7.4"]
+	path = projects/db4o-7.4
+	url = https://github.com/xor-freenet/db4o-7.4.git
