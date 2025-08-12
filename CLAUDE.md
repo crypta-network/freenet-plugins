@@ -67,6 +67,12 @@ The build system includes special handling for complex plugins:
 - **Constant substitution**: Replaces missing `STATISTICS_ENTRIES` constant with fixed value for basic I/O statistics
 - **Non-invasive patching**: Temporarily modifies source files during build with automatic restoration
 
+#### plugin-JSTUN Integration
+- **Tanuki Wrapper dependency**: Downloads and extracts authentic Tanuki Wrapper Community Edition (3.6.2)
+- **WrapperManager support**: Provides real WrapperManager classes for proper shutdown detection
+- **Automatic JAR extraction**: Extracts wrapper.jar from tar.gz archive to build dependencies
+- **Clean dependency provision**: Uses Ant `-lib` flag to add wrapper.jar to classpath without source modifications
+
 #### db4o-7.4 Database Integration
 The build system provides comprehensive db4o database support for plugins that require it:
 
@@ -89,8 +95,8 @@ The build system provides comprehensive db4o database support for plugins that r
 ### Build Output
 - All built JARs are collected in `./build/libs/` with plugin-specific names
 - Build artifacts are isolated and don't affect git status
-- Successfully builds 15/21 plugins including all db4o-dependent plugins (XMLLibrarian, XMLSpider, WebOfTrust, Freetalk, Freereader)
-- Advanced compatibility fixes enable Library and SNMP plugins to build with current Freenet API
+- Successfully builds 16/21 plugins including all db4o-dependent plugins (XMLLibrarian, XMLSpider, WebOfTrust, Freetalk, Freereader)
+- Advanced compatibility fixes enable Library, SNMP, and JSTUN plugins to build with current Freenet API
 - JARs contain authentic compiled functionality (larger sizes for db4o plugins reflect real database integration)
 
 ### Dependencies
@@ -98,6 +104,7 @@ The build system automatically handles:
 - **Fred (Freenet core)**: Built from submodule in `projects/fred/`
 - **db4o-7.4**: Shared database JAR compiled from submodule in `projects/db4o-7.4/` and stored in `build/deps/`
 - **External JARs**: SnakeYAML, XOM, BouncyCastle downloaded from Maven Central and stored in `build/deps/`
+- **Tanuki Wrapper**: Downloads and extracts wrapper.jar from official Tanuki Software Community Edition for WrapperManager support
 - **Plugin dependencies**: Proper classpath setup for both Ant and Gradle plugins
 - **Gradle wrappers**: Automatic installation and cleanup for plugins requiring them
 

@@ -22,7 +22,8 @@ object Config {
         "snakeyaml-1.29.jar" to "https://repo1.maven.org/maven2/org/yaml/snakeyaml/1.29/snakeyaml-1.29.jar",
         "snakeyaml-1.5.jar" to "https://repo1.maven.org/maven2/org/yaml/snakeyaml/1.5/snakeyaml-1.5.jar",
         "xom-1.3.8.jar" to "https://repo1.maven.org/maven2/xom/xom/1.3.8/xom-1.3.8.jar",
-        "bcprov-jdk15on-1.70.jar" to "https://repo1.maven.org/maven2/org/bouncycastle/bcprov-jdk15on/1.70/bcprov-jdk15on-1.70.jar"
+        "bcprov-jdk15on-1.70.jar" to "https://repo1.maven.org/maven2/org/bouncycastle/bcprov-jdk15on/1.70/bcprov-jdk15on-1.70.jar",
+        "wrapper-delta-pack-3.6.2.tar.gz" to "https://download.tanukisoftware.com/wrapper/3.6.2/wrapper-delta-pack-3.6.2.tar.gz"
     )
 }
 
@@ -218,6 +219,37 @@ val downloadDependencies = tasks.register("downloadDependencies") {
         
         // Setup plugin-specific dependencies
         setupPluginDependencies()
+        
+        // Extract wrapper.jar from Tanuki Wrapper for plugin-JSTUN
+        extractWrapperJar()
+    }
+}
+
+fun extractWrapperJar() {
+    val wrapperTarGz = file("${buildDepsDir}/wrapper-delta-pack-3.6.2.tar.gz")
+    val wrapperJar = file("${buildDepsDir}/wrapper.jar")
+    
+    if (wrapperTarGz.exists() && !wrapperJar.exists()) {
+        println("Extracting wrapper.jar from Tanuki Wrapper...")
+        val tempDir = file("${buildDepsDir}/temp-wrapper")
+        tempDir.mkdirs()
+        
+        try {
+            // Extract tar.gz
+            val tarCommand = listOf("tar", "-xzf", wrapperTarGz.absolutePath, "-C", tempDir.absolutePath)
+            if (executeCommand(tarCommand) == 0) {
+                // Find and copy wrapper.jar
+                val extractedWrapperJar = file("${tempDir}/wrapper-delta-pack-3.6.2/lib/wrapper.jar")
+                if (extractedWrapperJar.exists()) {
+                    extractedWrapperJar.copyTo(wrapperJar)
+                    println("Successfully extracted wrapper.jar")
+                } else {
+                    println("Warning: wrapper.jar not found in expected location")
+                }
+            }
+        } finally {
+            tempDir.deleteRecursively()
+        }
     }
 }
 
@@ -664,6 +696,26 @@ val buildAntPlugins = tasks.register("buildAntPlugins") {
                     snmpStarterBackup.copyTo(snmpStarterFile, overwrite = true)
                     dataStatsBackup.delete()
                     snmpStarterBackup.delete()
+                }
+            } else if (plugin.name == "plugin-JSTUN") {
+                // Special handling for plugin-JSTUN - provide Tanuki Wrapper JAR
+                val wrapperJar = file("build/deps/wrapper.jar")
+                
+                // Standard Ant plugin build with wrapper.jar on classpath
+                val antCommand = mutableListOf(
+                    "ant", "clean", "dist",
+                    "-Dsource-version=8",
+                    "-Dtarget-version=8",
+                    "-Dant.file.failonerror=false"
+                )
+                
+                // Add wrapper.jar to classpath if available
+                if (wrapperJar.exists()) {
+                    antCommand.addAll(listOf("-lib", wrapperJar.absolutePath))
+                }
+                
+                if (executeCommand(antCommand, workingDir = plugin.dir) == 0) {
+                    println("Successfully built ${plugin.name}")
                 }
             } else {
                 // Standard Ant plugin build
