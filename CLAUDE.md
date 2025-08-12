@@ -55,6 +55,18 @@ The build system includes special handling for complex plugins:
 - **Non-invasive fixes**: Temporary build file modifications without altering source code
 - **Legacy API support**: Maintains compatibility with older db4o API expectations
 
+#### plugin-Library Integration
+- **Generic type compatibility**: Fixes ProgressTracker generic type constraints for Java 21 compatibility
+- **SnakeYAML dependency**: Provides SnakeYAML 1.5 JAR compatible with plugin's API usage
+- **Non-invasive source patching**: Temporarily patches source files during build, automatically restored after compilation
+- **Progress interface import**: Adds missing Progress interface import for proper type resolution
+
+#### plugin-SNMP Integration
+- **IOStatisticCollector API compatibility**: Fixes compatibility with current Freenet IOStatisticCollector API
+- **Missing method replacement**: Replaces deprecated `getTotalStatistics()` with `getTotalIO()` and approximation logic
+- **Constant substitution**: Replaces missing `STATISTICS_ENTRIES` constant with fixed value for basic I/O statistics
+- **Non-invasive patching**: Temporarily modifies source files during build with automatic restoration
+
 #### db4o-7.4 Database Integration
 The build system provides comprehensive db4o database support for plugins that require it:
 
@@ -77,7 +89,8 @@ The build system provides comprehensive db4o database support for plugins that r
 ### Build Output
 - All built JARs are collected in `./build/libs/` with plugin-specific names
 - Build artifacts are isolated and don't affect git status
-- Successfully builds 14/22 plugins including all db4o-dependent plugins (XMLLibrarian, XMLSpider, WebOfTrust, Freetalk, Freereader)
+- Successfully builds 15/21 plugins including all db4o-dependent plugins (XMLLibrarian, XMLSpider, WebOfTrust, Freetalk, Freereader)
+- Advanced compatibility fixes enable Library and SNMP plugins to build with current Freenet API
 - JARs contain authentic compiled functionality (larger sizes for db4o plugins reflect real database integration)
 
 ### Dependencies
