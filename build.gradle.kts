@@ -14,6 +14,7 @@ object Config {
     
     val PLUGINS_NEEDING_WRAPPER = listOf("plugin-WebOfTrust", "plugin-Freetalk")
     val ANT_PLUGINS_NEEDING_DB4O = listOf("plugin-XMLLibrarian", "plugin-XMLSpider")
+    val ANT_PLUGINS_NEEDING_DB4O_JAR_ONLY = listOf("plugin-Freereader")
     val GRADLE_PLUGINS_NEEDING_DB4O = listOf("plugin-WebOfTrust", "plugin-Freetalk")
     val ALL_PLUGINS_NEEDING_DB4O = ANT_PLUGINS_NEEDING_DB4O + GRADLE_PLUGINS_NEEDING_DB4O
     
@@ -362,14 +363,40 @@ val createDb4oJar = tasks.register("createDb4oJar") {
                 tempBuildDir.mkdirs()
                 db4oJar.parentFile.mkdirs()
                 
-                // Find all Java files
-                val javaFiles = fileTree("${db4oSrcDir}/db4oj") {
-                    include("**/*.java")
-                }.files.map { it.absolutePath }
+                // Build only essential db4o classes - use JDK1.2 version for ObjectSet compatibility
+                val db4ojDir = File(db4oSrcDir, "db4oj/core/src")
+                val jdk12Dir = File(db4oSrcDir, "db4ojdk1.2/core/src") 
                 
-                if (javaFiles.isNotEmpty()) {
-                    // Compile
-                    val compileCmd = listOf("javac", "-d", tempBuildDir.absolutePath, "-source", "8", "-target", "8") + javaFiles
+                if (db4ojDir.exists()) {
+                    val tempSrcDir = File(buildDir, "temp/db4o-src")
+                    tempSrcDir.mkdirs()
+                    
+                    // Copy all base db4oj sources
+                    copy {
+                        from(db4ojDir) 
+                        into(tempSrcDir)
+                        exclude("**/test/**")
+                    }
+                    
+                    // Override with JDK1.2 versions for List compatibility
+                    if (jdk12Dir.exists()) {
+                        copy {
+                            from(jdk12Dir)
+                            into(tempSrcDir)
+                            exclude("**/test/**")
+                        }
+                    }
+                    
+                    // Find all Java files in the merged source directory
+                    val javaFiles = fileTree(tempSrcDir) {
+                        include("**/*.java")
+                    }.files.map { it.absolutePath }
+                    
+                    // Compile merged sources
+                    val compileCmd = listOf("javac", 
+                        "-d", tempBuildDir.absolutePath,
+                        "-source", "8", 
+                        "-target", "8") + javaFiles
                     if (executeCommand(compileCmd) == 0) {
                         // Create JAR
                         val jarCmd = listOf("jar", "cf", db4oJar.absolutePath, "-C", tempBuildDir.absolutePath, ".")
@@ -517,20 +544,52 @@ val buildAntPlugins = tasks.register("buildAntPlugins") {
         antPlugins.forEach { plugin ->
             println("Building Ant plugin: ${plugin.name}")
             
-            val needsDb4o = plugin.name in Config.ANT_PLUGINS_NEEDING_DB4O
-            val antCommand = mutableListOf(
-                "ant", "clean", "dist",
-                "-Dsource-version=8",
-                "-Dtarget-version=8",
-                "-Dant.file.failonerror=false"
-            )
+            val needsDb4o = plugin.name in Config.ANT_PLUGINS_NEEDING_DB4O || plugin.name in Config.ANT_PLUGINS_NEEDING_DB4O_JAR_ONLY
             
-            if (needsDb4o && db4oJar.exists()) {
-                antCommand.addAll(listOf("-lib", db4oJar.absolutePath))
-            }
-            
-            if (executeCommand(antCommand, workingDir = plugin.dir) == 0) {
-                println("Successfully built ${plugin.name}")
+            // Special handling for plugin-Freereader
+            if (plugin.name == "plugin-Freereader") {
+                val buildXml = File(plugin.dir, "build.xml")
+                val tempBuildXml = File(buildDir, "temp-build-files/plugin-Freereader-build.xml")
+                tempBuildXml.parentFile.mkdirs()
+                
+                // Create a modified build.xml that uses Java 8 (minimum supported by Java 21)
+                // but with relaxed type checking that might help with db4o compatibility
+                val content = buildXml.readText()
+                    .replace("source=\"1.6\"", "source=\"8\"")
+                    .replace("target=\"1.6\"", "target=\"8\"")
+                tempBuildXml.writeText(content)
+                
+                val antCommand = mutableListOf(
+                    "ant", "-f", tempBuildXml.absolutePath,
+                    "-Dbasedir=${plugin.dir.absolutePath}",
+                    "clean", "main",
+                    "-Dant.file.failonerror=false"
+                )
+                
+                // Add db4o if needed
+                if (needsDb4o && db4oJar.exists()) {
+                    antCommand.addAll(listOf("-lib", db4oJar.absolutePath))
+                }
+                
+                if (executeCommand(antCommand, workingDir = plugin.dir) == 0) {
+                    println("Successfully built ${plugin.name}")
+                }
+            } else {
+                // Standard Ant plugin build
+                val antCommand = mutableListOf(
+                    "ant", "clean", "dist",
+                    "-Dsource-version=8",
+                    "-Dtarget-version=8",
+                    "-Dant.file.failonerror=false"
+                )
+                
+                if (needsDb4o && db4oJar.exists()) {
+                    antCommand.addAll(listOf("-lib", db4oJar.absolutePath))
+                }
+                
+                if (executeCommand(antCommand, workingDir = plugin.dir) == 0) {
+                    println("Successfully built ${plugin.name}")
+                }
             }
         }
     }

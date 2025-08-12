@@ -49,19 +49,27 @@ The build system includes special handling for complex plugins:
 - **Deprecated property fixes**: Updates archiveBaseName and destinationDirectory for modern Gradle
 - **Complete cleanup**: All temporary modifications are automatically restored after building
 
+#### plugin-Freereader Integration
+- **Special Java version handling**: Creates temporary build.xml with corrected Java 8 source/target settings
+- **db4o compatibility**: Uses List-compatible ObjectSet from db4o JDK 1.2 version via shared JAR
+- **Non-invasive fixes**: Temporary build file modifications without altering source code
+- **Legacy API support**: Maintains compatibility with older db4o API expectations
+
 #### db4o-7.4 Database Integration
 The build system provides comprehensive db4o database support for plugins that require it:
 
 **Supported Plugins**:
 - **Ant plugins**: XMLLibrarian, XMLSpider - receive db4o via shared JAR on classpath
+- **Ant plugins (JAR-only)**: Freereader - receives db4o via shared JAR on classpath (no source symlink)
 - **Gradle plugins**: WebOfTrust, Freetalk - receive db4o.jar copied to their db4o-7.4/ directory
 
 **Architecture**:
-- **Shared compilation**: Creates single `build/deps/db4o-7.4.jar` from authentic db4o-7.4 source
+- **Shared compilation**: Creates single `build/deps/db4o-7.4.jar` from authentic db4o-7.4 source with JDK 1.2 compatibility layer
+- **List compatibility**: Includes db4ojdk1.2 sources to provide ObjectSet that implements java.util.List for legacy plugins
 - **Non-invasive delivery**: 
   - Ant plugins: Uses `-lib` flag to add shared JAR to classpath
   - Gradle plugins: Copies shared JAR as `db4o-7.4/db4o.jar` expected by build.gradle
-- **Source symlinks**: Ant plugins get temporary symlinks to db4o-7.4/src for compilation access
+- **Source symlinks**: Standard Ant plugins get temporary symlinks to db4o-7.4/src for compilation access
 - **Complete cleanup**: All symlinks and copied JARs automatically removed after build
 
 **Scalability**: Adding new plugins requires only updating plugin name lists - no custom build logic needed
@@ -69,7 +77,7 @@ The build system provides comprehensive db4o database support for plugins that r
 ### Build Output
 - All built JARs are collected in `./build/libs/` with plugin-specific names
 - Build artifacts are isolated and don't affect git status
-- Successfully builds 13/22 plugins including all db4o-dependent plugins (XMLLibrarian, XMLSpider, WebOfTrust, Freetalk)
+- Successfully builds 14/22 plugins including all db4o-dependent plugins (XMLLibrarian, XMLSpider, WebOfTrust, Freetalk, Freereader)
 - JARs contain authentic compiled functionality (larger sizes for db4o plugins reflect real database integration)
 
 ### Dependencies
