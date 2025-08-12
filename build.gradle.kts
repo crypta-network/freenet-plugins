@@ -1,8 +1,8 @@
+import java.nio.file.Files
+
 plugins {
     base
 }
-
-import java.nio.file.Files
 
 val projectsDir = file("projects")
 val buildLibsDir = file("build/libs")
@@ -380,6 +380,7 @@ val installGradleWrappers = tasks.register("installGradleWrappers") {
 val cleanInstalledWrappers = tasks.register("cleanInstalledWrappers") {
     description = "Remove temporarily installed Gradle wrappers and dependencies"
     group = "build"
+    dependsOn(cleanupDb4oSupport)
     
     doLast {
         val pluginsWithInstalledWrapper = listOf("plugin-WebOfTrust", "plugin-Freetalk")
@@ -431,7 +432,7 @@ val cleanInstalledWrappers = tasks.register("cleanInstalledWrappers") {
 val buildGradlePlugins = tasks.register<Exec>("buildGradlePlugins") {
     description = "Build all Gradle-based plugins"
     group = "build"
-    dependsOn(buildFred, downloadDependencies, installGradleWrappers)
+    dependsOn(buildFred, downloadDependencies, installGradleWrappers, setupGradlePluginDb4o)
     
     // We'll use a shell script approach for complex multi-directory builds
     commandLine("bash", "-c", "echo 'Building Gradle plugins...'")
@@ -508,25 +509,267 @@ val buildGradlePlugins = tasks.register<Exec>("buildGradlePlugins") {
     }
 }
 
+// Task to set up db4o source symlinks for Ant plugins that need it
+val setupAntPluginDb4o = tasks.register("setupAntPluginDb4o") {
+    description = "Set up db4o source symlinks for Ant plugins that require it"
+    group = "build"
+    
+    doLast {
+        val antPluginsNeedingDb4o = listOf("plugin-XMLLibrarian", "plugin-XMLSpider")
+        
+        // Set up symlinks for Ant plugins (they need source for compilation)
+        antPluginsNeedingDb4o.forEach { pluginName ->
+            val pluginDir = file("projects/${pluginName}")
+            if (pluginDir.exists()) {
+                println("Setting up db4o source symlink for ${pluginName}...")
+                
+                try {
+                    val db4oDir = File(pluginDir, "db4o-7.4")
+                    val realDb4oDir = file("projects/db4o-7.4")
+                    
+                    if (realDb4oDir.exists()) {
+                        // Create db4o directory if it doesn't exist
+                        if (!db4oDir.exists()) {
+                            db4oDir.mkdirs()
+                        }
+                        
+                        // Create symlink to real db4o source
+                        val srcDir = File(db4oDir, "src")
+                        if (!srcDir.exists() || !Files.isSymbolicLink(srcDir.toPath())) {
+                            if (srcDir.exists()) {
+                                srcDir.deleteRecursively()
+                            }
+                            
+                            try {
+                                val process = ProcessBuilder("ln", "-sf", "${realDb4oDir.absolutePath}/src", srcDir.absolutePath)
+                                    .start()
+                                val exitCode = process.waitFor()
+                                if (exitCode == 0) {
+                                    println("Created symlink to db4o-7.4/src for ${pluginName}")
+                                } else {
+                                    println("Failed to create symlink for ${pluginName}")
+                                }
+                            } catch (e: Exception) {
+                                println("Error creating symlink: ${e.message}")
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    println("Error setting up db4o for ${pluginName}: ${e.message}")
+                }
+            }
+        }
+    }
+}
+
+// Task to copy shared db4o JAR to Gradle plugins
+val setupGradlePluginDb4o = tasks.register("setupGradlePluginDb4o") {
+    description = "Copy shared db4o JAR to Gradle plugins that need it"
+    group = "build"
+    dependsOn(createDb4oJar)
+    
+    doLast {
+        val gradlePluginsNeedingDb4o = listOf("plugin-WebOfTrust", "plugin-Freetalk")
+        val db4oJar = file("build/deps/db4o-7.4.jar")
+        
+        if (db4oJar.exists()) {
+            gradlePluginsNeedingDb4o.forEach { pluginName ->
+                val pluginDir = file("projects/${pluginName}")
+                if (pluginDir.exists()) {
+                    println("Setting up db4o JAR for ${pluginName}...")
+                    
+                    try {
+                        val pluginDb4oDir = File(pluginDir, "db4o-7.4")
+                        pluginDb4oDir.mkdirs()
+                        
+                        val pluginDb4oJar = File(pluginDb4oDir, "db4o.jar")
+                        db4oJar.copyTo(pluginDb4oJar, overwrite = true)
+                        
+                        println("Copied db4o.jar to ${pluginName}")
+                    } catch (e: Exception) {
+                        println("Error setting up db4o JAR for ${pluginName}: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Task to clean up db4o setup for plugins
+val cleanupDb4oSupport = tasks.register("cleanupDb4oSupport") {
+    description = "Clean up db4o setup for all plugins"
+    group = "build"
+    
+    doLast {
+        val antPluginsWithDb4o = listOf("plugin-XMLLibrarian", "plugin-XMLSpider")
+        val gradlePluginsWithDb4o = listOf("plugin-WebOfTrust", "plugin-Freetalk")
+        
+        // Clean up Ant plugins (symlinks)
+        antPluginsWithDb4o.forEach { pluginName ->
+            val pluginDir = file("projects/${pluginName}")
+            if (pluginDir.exists()) {
+                val db4oDir = File(pluginDir, "db4o-7.4")
+                if (db4oDir.exists()) {
+                    val srcDir = File(db4oDir, "src")
+                    if (Files.isSymbolicLink(srcDir.toPath())) {
+                        srcDir.delete()
+                        println("Removed db4o-7.4/src symlink for ${pluginName}")
+                    }
+                    // Remove the directory if it's empty or only contains build artifacts
+                    if (db4oDir.listFiles()?.all { it.name == "build" || it.name == "src" } == true) {
+                        db4oDir.deleteRecursively()
+                        println("Removed db4o-7.4 directory for ${pluginName}")
+                    }
+                }
+            }
+        }
+        
+        // Clean up Gradle plugins (copied JARs)
+        gradlePluginsWithDb4o.forEach { pluginName ->
+            val pluginDir = file("projects/${pluginName}")
+            if (pluginDir.exists()) {
+                val pluginDb4oJar = File(pluginDir, "db4o-7.4/db4o.jar")
+                if (pluginDb4oJar.exists()) {
+                    pluginDb4oJar.delete()
+                    println("Removed db4o.jar from ${pluginName}")
+                    
+                    // Remove empty db4o-7.4 directory if it exists
+                    val db4oDir = pluginDb4oJar.parentFile
+                    if (db4oDir.exists() && db4oDir.listFiles()?.isEmpty() == true) {
+                        db4oDir.delete()
+                        println("Removed empty db4o-7.4 directory for ${pluginName}")
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Task to create shared db4o JAR for all plugins that need it
+val createDb4oJar = tasks.register("createDb4oJar") {
+    description = "Create shared db4o JAR for plugins that need it"
+    group = "build"
+    dependsOn(setupAntPluginDb4o)
+    
+    val db4oJar = file("build/deps/db4o-7.4.jar")
+    outputs.file(db4oJar)
+    
+    doLast {
+        // Only create if there are plugins that need db4o and the jar doesn't exist
+        val pluginsNeedingDb4o = listOf("plugin-XMLLibrarian", "plugin-XMLSpider", "plugin-WebOfTrust", "plugin-Freetalk")
+        if (pluginsNeedingDb4o.isNotEmpty()) {
+            
+            // Find any plugin with db4o source (they all symlink to the same source)
+            val db4oSrcDir = pluginsNeedingDb4o
+                .map { file("projects/${it}/db4o-7.4/src") }
+                .find { it.exists() }
+            
+            if (db4oSrcDir != null) {
+                println("Creating db4o JAR...")
+                
+                val tempBuildDir = file("build/temp/db4o-build")
+                tempBuildDir.mkdirs()
+                db4oJar.parentFile.mkdirs()
+                
+                try {
+                    // Compile db4o to temporary directory
+                    val javacCommand = mutableListOf(
+                        "javac",
+                        "-d", tempBuildDir.absolutePath,
+                        "-source", "8",
+                        "-target", "8"
+                    )
+                    
+                    // Find all Java files in db4o source
+                    val javaFiles = mutableListOf<String>()
+                    fileTree("${db4oSrcDir}/db4oj") {
+                        include("**/*.java")
+                    }.forEach { javaFile ->
+                        javaFiles.add(javaFile.absolutePath)
+                    }
+                    
+                    if (javaFiles.isNotEmpty()) {
+                        javacCommand.addAll(javaFiles)
+                        
+                        val compileProcess = ProcessBuilder(javacCommand)
+                            .redirectErrorStream(true)
+                            .start()
+                        
+                        val compileOutput = compileProcess.inputStream.bufferedReader().readText()
+                        val compileExitCode = compileProcess.waitFor()
+                        
+                        if (compileExitCode != 0) {
+                            println("Warning: Failed to compile db4o (exit code: $compileExitCode)")
+                            if (System.getProperty("gradle.verbose", "false") == "true") {
+                                println("db4o compilation output:")
+                                println(compileOutput)
+                            }
+                        } else {
+                            // Create JAR from compiled classes
+                            val jarCommand = listOf(
+                                "jar", "cf", db4oJar.absolutePath,
+                                "-C", tempBuildDir.absolutePath, "."
+                            )
+                            
+                            val jarProcess = ProcessBuilder(jarCommand)
+                                .redirectErrorStream(true)
+                                .start()
+                            
+                            val jarOutput = jarProcess.inputStream.bufferedReader().readText()
+                            val jarExitCode = jarProcess.waitFor()
+                            
+                            if (jarExitCode != 0) {
+                                println("Warning: Failed to create db4o JAR (exit code: $jarExitCode)")
+                                if (System.getProperty("gradle.verbose", "false") == "true") {
+                                    println("JAR creation output:")
+                                    println(jarOutput)
+                                }
+                            } else {
+                                println("Successfully created db4o JAR: ${db4oJar}")
+                            }
+                        }
+                    }
+                    
+                    // Clean up temporary build directory
+                    tempBuildDir.deleteRecursively()
+                } catch (e: Exception) {
+                    println("Error creating db4o JAR: ${e.message}")
+                }
+            }
+        }
+    }
+}
+
 // Task to build all Ant plugins
 val buildAntPlugins = tasks.register<Exec>("buildAntPlugins") {
     description = "Build all Ant-based plugins"
     group = "build"
-    dependsOn(buildFred, downloadDependencies)
+    dependsOn(buildFred, downloadDependencies, createDb4oJar)
     
     commandLine("bash", "-c", "echo 'Building Ant plugins...'")
     
     doLast {
+        val db4oJar = file("build/deps/db4o-7.4.jar")
+        
         antPlugins.forEach { pluginDir ->
             println("Building Ant plugin: ${pluginDir.name}")
             
             try {
+                // Check if this plugin needs db4o
+                val needsDb4o = pluginDir.name in listOf("plugin-XMLLibrarian", "plugin-XMLSpider")
+                
                 // Use property overrides to fix Java version issues non-invasively
                 val antCommand = mutableListOf("ant", "clean", "dist")
                 
                 // Override Java source and target versions
                 antCommand.add("-Dsource-version=8")
                 antCommand.add("-Dtarget-version=8") 
+                
+                // For plugins that need db4o, add the JAR to Ant's lib path
+                if (needsDb4o && db4oJar.exists()) {
+                    antCommand.add("-lib")
+                    antCommand.add(db4oJar.absolutePath)
+                }
                 
                 // Set system properties for build fixes
                 antCommand.add("-Dant.file.failonerror=false")

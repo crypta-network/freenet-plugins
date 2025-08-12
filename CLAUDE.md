@@ -50,23 +50,34 @@ The build system includes special handling for complex plugins:
 - **Complete cleanup**: All temporary modifications are automatically restored after building
 
 #### db4o-7.4 Database Integration
-- **Real source code**: Uses authentic db4o 7.4 from https://github.com/xor-freenet/db4o-7.4
-- **Symlink management**: Temporarily replaces empty db4o-7.4 directories with symlinks to real source
-- **Compilation integration**: Plugins compile genuine db4o functionality instead of dummy implementations
-- **Automatic cleanup**: Symlinks removed and empty directories restored after build
+The build system provides comprehensive db4o database support for plugins that require it:
+
+**Supported Plugins**:
+- **Ant plugins**: XMLLibrarian, XMLSpider - receive db4o via shared JAR on classpath
+- **Gradle plugins**: WebOfTrust, Freetalk - receive db4o.jar copied to their db4o-7.4/ directory
+
+**Architecture**:
+- **Shared compilation**: Creates single `build/deps/db4o-7.4.jar` from authentic db4o-7.4 source
+- **Non-invasive delivery**: 
+  - Ant plugins: Uses `-lib` flag to add shared JAR to classpath
+  - Gradle plugins: Copies shared JAR as `db4o-7.4/db4o.jar` expected by build.gradle
+- **Source symlinks**: Ant plugins get temporary symlinks to db4o-7.4/src for compilation access
+- **Complete cleanup**: All symlinks and copied JARs automatically removed after build
+
+**Scalability**: Adding new plugins requires only updating plugin name lists - no custom build logic needed
 
 ### Build Output
 - All built JARs are collected in `./build/libs/` with plugin-specific names
 - Build artifacts are isolated and don't affect git status
-- Successfully builds 11/22 plugins (50% success rate) including WebOfTrust and Freetalk
-- JARs contain authentic compiled functionality (larger sizes reflect real db4o database)
+- Successfully builds 13/22 plugins including all db4o-dependent plugins (XMLLibrarian, XMLSpider, WebOfTrust, Freetalk)
+- JARs contain authentic compiled functionality (larger sizes for db4o plugins reflect real database integration)
 
 ### Dependencies
 The build system automatically handles:
 - **Fred (Freenet core)**: Built from submodule in `projects/fred/`
-- **db4o-7.4**: Real database source from submodule in `projects/db4o-7.4/`
-- **External JARs**: SnakeYAML, XOM, BouncyCastle downloaded from Maven Central
-- **Plugin dependencies**: Proper classpath setup and symlink creation
+- **db4o-7.4**: Shared database JAR compiled from submodule in `projects/db4o-7.4/` and stored in `build/deps/`
+- **External JARs**: SnakeYAML, XOM, BouncyCastle downloaded from Maven Central and stored in `build/deps/`
+- **Plugin dependencies**: Proper classpath setup for both Ant and Gradle plugins
 - **Gradle wrappers**: Automatic installation and cleanup for plugins requiring them
 
 ### Git Configuration
