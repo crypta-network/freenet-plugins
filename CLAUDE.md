@@ -111,8 +111,8 @@ The build system provides comprehensive db4o database support for plugins that r
 ### Build Output
 - All built JARs are collected in `./build/libs/` with plugin-specific names
 - Build artifacts are isolated and don't affect git status
-- Successfully builds 19/19 plugins (100% success rate) including all db4o-dependent plugins (XMLLibrarian, XMLSpider, WebOfTrust, Freetalk, Freereader)
-- Advanced compatibility fixes enable Library, SNMP, JSTUN, FlogHelper, and KeyUtils plugins to build with current Freenet API
+- Successfully builds 20/20 plugins (100% success rate) including all db4o-dependent plugins (XMLLibrarian, XMLSpider, WebOfTrust, Freetalk, Freereader)
+- Advanced compatibility fixes enable Library, SNMP, JSTUN, FlogHelper, KeyUtils, and KeepAlive plugins to build with current Freenet API
 - JARs contain authentic compiled functionality (larger sizes for db4o plugins reflect real database integration)
 - 3 plugins are intentionally excluded: plugin-Echo (extensive API incompatibilities), plugin-Freemail-v0.1 (superseded), plugin-old-bookmarkplugin (deprecated)
 
