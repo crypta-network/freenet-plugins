@@ -16,4 +16,9 @@ object BuildConfig {
         "bcprov-jdk15on-1.70.jar" to "https://repo1.maven.org/maven2/org/bouncycastle/bcprov-jdk15on/1.70/bcprov-jdk15on-1.70.jar",
         "wrapper-delta-pack-3.6.2.tar.gz" to "https://download.tanukisoftware.com/wrapper/3.6.2/wrapper-delta-pack-3.6.2.tar.gz"
     )
+    
+    // Shadow plugin configuration for package relocation
+    const val SHADOW_LIBS_DIR = "build/libs-crypta"
+    const val PACKAGE_FROM = "freenet"
+    const val PACKAGE_TO = "network.crypta"
 }

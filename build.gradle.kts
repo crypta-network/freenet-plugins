@@ -2,9 +2,11 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import plugins.*
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
     base
+    id("com.gradleup.shadow")
 }
 
 // Directory references
@@ -12,6 +14,7 @@ val projectsDir = file("projects")
 val buildLibsDir = file("build/libs")
 val buildDepsDir = file("build/deps")
 val tempBuildDir = file("build/temp-build-files")
+val shadowLibsDir = file(BuildConfig.SHADOW_LIBS_DIR)
 
 // Plugin discovery
 val allPlugins: List<PluginInfo> by lazy {
@@ -696,6 +699,92 @@ tasks.register("diagnoseBuildIssues") {
         println("   ./gradlew diagnoseBuildIssues - Show this diagnosis")
         println("   ./gradlew cleanAll            - Clean all builds")
     }
+}
+
+// Task: Create shadow JARs with relocated packages using proper Shadow plugin
+val createShadowJars = tasks.register("createShadowJars") {
+    description = "Create shadow JARs with relocated packages (freenet.* -> network.crypta.*)"
+    group = "shadow"
+    dependsOn(collectJars)
+    
+    doLast {
+        shadowLibsDir.deleteRecursively()
+        shadowLibsDir.mkdirs()
+        
+        println("Creating shadow JARs with package relocation...")
+        println("Relocating: freenet.* -> network.crypta.*")
+        
+        val jarFiles = buildLibsDir.listFiles { it.extension == "jar" }?.sorted() ?: emptyList()
+        var successCount = 0
+        
+        jarFiles.forEach { originalJar ->
+            val shadowJarName = originalJar.nameWithoutExtension + "-shadow.jar"
+            val shadowJar = file("${shadowLibsDir}/${shadowJarName}")
+            
+            println("Processing: ${originalJar.name} -> ${shadowJarName}")
+            
+            try {
+                // Create a proper ShadowJar task for each JAR
+                val tempShadowTask = tasks.create("tempShadow${originalJar.nameWithoutExtension}", ShadowJar::class.java) {
+                    archiveFileName.set(shadowJarName)
+                    destinationDirectory.set(shadowLibsDir)
+                    from(zipTree(originalJar))
+                    
+                    // Relocate freenet packages with proper bytecode transformation
+                    relocate("freenet", "network.crypta")
+                    
+                    // Exclude duplicates  
+                    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+                    
+                    // Preserve original manifest attributes, especially Plugin-Main-Class
+                    manifest {
+                        // Read original manifest
+                        val originalManifestFile = zipTree(originalJar).matching { 
+                            include("META-INF/MANIFEST.MF") 
+                        }.singleFile
+                        
+                        if (originalManifestFile.exists()) {
+                            val originalManifest = java.util.jar.Manifest(originalManifestFile.inputStream())
+                            originalManifest.mainAttributes.forEach { key, value ->
+                                attributes[key.toString()] = value.toString()
+                            }
+                        }
+                    }
+                }
+                
+                // Execute the shadow task
+                tempShadowTask.actions.forEach { action ->
+                    action.execute(tempShadowTask)
+                }
+                
+                if (shadowJar.exists()) {
+                    println("  ✓ Created ${shadowJarName}")
+                    successCount++
+                } else {
+                    println("  ✗ Failed to create ${shadowJarName}")
+                }
+                
+                // Note: Temp task cleanup not needed - tasks will be cleaned up after build
+                
+            } catch (e: Exception) {
+                println("  ✗ Failed to create ${shadowJarName}: ${e.message}")
+            }
+        }
+        
+        println("\nSuccessfully created $successCount shadow JARs in ${shadowLibsDir}")
+        
+        shadowLibsDir.listFiles { it.extension == "jar" }?.sorted()?.forEach {
+            println("  - ${it.name} (${it.length() / 1024} KB)")
+        }
+    }
+}
+
+// Task: Build all and create shadow JARs
+tasks.register("buildAllWithShadow") {
+    description = "Build all plugins and create shadow JARs with relocated packages"
+    group = "build"
+    dependsOn(collectJars, createShadowJars)
+    finalizedBy(cleanInstalledWrappers)
 }
 
 // Set default task
