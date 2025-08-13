@@ -93,7 +93,7 @@ The build system includes special handling for complex plugins:
 #### plugin-KeyUtils Integration
 - **Dependency resolution fixes**: Replaces unresolvable Maven dependency `fred:build+` with local file dependencies to freenet.jar and freenet-ext.jar
 - **Java compatibility fixes**: Updates Java version from 1.7 to 1.8 for modern compatibility
-- **Build isolation enhancement**: Uses `-p` parameter for proper Gradle project isolation to prevent parent build interference
+- **Build isolation enhancement**: Creates temporary `settings.gradle` files during build to prevent buildSrc interference from parent project
 - **File path resolution fixes**: Replaces problematic `getMTime()` file access with `new Date()` to avoid working directory issues
 - **Non-invasive patching**: All modifications temporarily applied during build and automatically restored after completion
 
@@ -115,6 +115,45 @@ The build system provides comprehensive db4o database support for plugins that r
 - **Complete cleanup**: All symlinks and copied JARs automatically removed after build
 
 **Scalability**: Adding new plugins requires only updating plugin name lists - no custom build logic needed
+
+### Performance Optimizations
+The build system includes several performance enhancements for faster, more efficient builds:
+
+#### Build Performance
+- **Lazy evaluation**: Directory references and plugin discovery use lazy initialization to reduce startup time
+- **Incremental builds**: Proper input/output declarations enable Gradle's incremental build capabilities
+- **Build caching**: Tasks configured with `outputs.cacheIf { true }` for faster subsequent builds
+- **Parallel execution**: gradle.properties configured for parallel builds and optimized memory usage
+- **Configuration on demand**: Reduces configuration time by only configuring required subprojects
+
+#### Task Dependencies & Execution
+- **Optimized task ordering**: Uses `mustRunAfter` instead of heavy `dependsOn` where appropriate
+- **Up-to-date checks**: Smart up-to-date detection for wrapper installation and db4o setup tasks
+- **Build isolation**: Gradle plugin builds use temporary `settings.gradle` files to prevent buildSrc interference
+- **Memory optimization**: JVM configured with `-Xmx2048m -XX:MaxMetaspaceSize=512m` for optimal performance
+
+#### Caching & Configuration
+- **File system watching**: Enabled via `org.gradle.vfs.watch=true` for faster file change detection  
+- **Kotlin incremental compilation**: Enabled for faster buildSrc compilation
+- **Configuration cache ready**: Prepared for Gradle's configuration cache (commented out for compatibility)
+- **Build scan integration**: Ready for detailed build performance analysis
+
+#### gradle.properties Configuration
+```properties
+# Performance settings
+org.gradle.parallel=true
+org.gradle.caching=true
+org.gradle.configureondemand=true
+org.gradle.daemon=true
+
+# Memory optimization
+org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError
+
+# Modern Gradle features
+org.gradle.vfs.watch=true
+kotlin.incremental=true
+kotlin.caching.enabled=true
+```
 
 ### Build Output
 - All built JARs are collected in `./build/libs/` with plugin-specific names

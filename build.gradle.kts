@@ -9,12 +9,12 @@ plugins {
     id("com.gradleup.shadow")
 }
 
-// Directory references
-val projectsDir = file("projects")
-val buildLibsDir = file("build/libs")
-val buildDepsDir = file("build/deps")
-val tempBuildDir = file("build/temp-build-files")
-val shadowLibsDir = file(BuildConfig.SHADOW_LIBS_DIR)
+// Directory references - using lazy evaluation for better performance
+val projectsDir by lazy { file("projects") }
+val buildLibsDir by lazy { file("build/libs") }
+val buildDepsDir by lazy { file("build/deps") }
+val tempBuildDir by lazy { file("build/temp-build-files") }
+val shadowLibsDir by lazy { file(BuildConfig.SHADOW_LIBS_DIR) }
 
 // Plugin discovery
 val allPlugins: List<PluginInfo> by lazy {
@@ -33,7 +33,13 @@ val allPlugins: List<PluginInfo> by lazy {
 val gradlePlugins = allPlugins.filter { it.isGradle }
 val antPlugins = allPlugins.filter { it.isAnt && !it.isGradle }
 
-println("Found ${gradlePlugins.size} Gradle plugins and ${antPlugins.size} Ant plugins")
+// Print plugin discovery info only when needed
+gradle.taskGraph.whenReady {
+    val taskNames = allTasks.map { it.name }
+    if (taskNames.any { it in listOf("buildAll", "buildGradlePlugins", "buildAntPlugins", "listPlugins") }) {
+        println("Found ${gradlePlugins.size} Gradle plugins and ${antPlugins.size} Ant plugins")
+    }
+}
 
 // Helper function for command execution
 fun executeCommand(command: List<String>, workingDir: File? = null): Int {
@@ -52,8 +58,10 @@ val buildFred = tasks.register("buildFred") {
     
     inputs.files(fileTree(fredDir) { 
         include("src/**/*", "build.gradle", "dependencies.properties")
+        exclude("**/.gradle/**", "**/build/**")
     })
     outputs.files(fredJar, fredExtJar)
+    outputs.cacheIf { true }
     
     onlyIf { !fredJar.exists() || !fredExtJar.exists() }
     
@@ -95,6 +103,9 @@ val buildFred = tasks.register("buildFred") {
 val downloadDependencies = tasks.register("downloadDependencies") {
     description = "Download missing external dependencies for plugins"
     group = "dependencies"
+    
+    outputs.dir(buildDepsDir)
+    outputs.cacheIf { true }
     
     doLast {
         println("Downloading missing external dependencies...")
@@ -162,6 +173,12 @@ fun setupPluginDependencies() {
 val installGradleWrappers = tasks.register("installGradleWrappers") {
     description = "Install Gradle wrapper for plugins without one"
     group = "build"
+    
+    outputs.upToDateWhen { 
+        BuildConfig.PLUGINS_NEEDING_WRAPPER.all { pluginName ->
+            file("projects/${pluginName}/gradlew").exists()
+        }
+    }
     
     doLast {
         val sourcePluginDir = file("projects/plugin-FlogHelper")
@@ -297,15 +314,20 @@ val createDb4oJar = tasks.register("createDb4oJar") {
     dependsOn("setupAntPluginDb4o")
     
     val db4oJar = file("build/deps/${BuildConfig.DB4O_JAR_NAME}")
+    val db4oSrcDir = file("projects/db4o-7.4/src")
+    
+    inputs.dir(db4oSrcDir)
     outputs.file(db4oJar)
+    outputs.cacheIf { true }
+    
+    onlyIf { !db4oJar.exists() }
     
     doLast {
         if (BuildConfig.ALL_PLUGINS_NEEDING_DB4O.isNotEmpty()) {
-            val db4oSrcDir = BuildConfig.ALL_PLUGINS_NEEDING_DB4O
-                .map { file("projects/${it}/db4o-7.4/src") }
-                .find { it.exists() }
+            val db4oSrcDir = file("projects/db4o-7.4/src")
+            val db4oJar = outputs.files.singleFile
             
-            if (db4oSrcDir != null) {
+            if (db4oSrcDir.exists()) {
                 println("Creating db4o JAR...")
                 val tempBuildDir = file("build/temp/db4o-build")
                 tempBuildDir.mkdirs()
@@ -316,7 +338,7 @@ val createDb4oJar = tasks.register("createDb4oJar") {
                 val jdk12Dir = File(db4oSrcDir, "db4ojdk1.2/core/src") 
                 
                 if (db4ojDir.exists()) {
-                    val tempSrcDir = File(buildDir, "temp/db4o-src")
+                    val tempSrcDir = File(layout.buildDirectory.get().asFile, "temp/db4o-src")
                     tempSrcDir.mkdirs()
                     
                     // Copy all base db4oj sources
@@ -364,6 +386,13 @@ val setupAntPluginDb4o = tasks.register("setupAntPluginDb4o") {
     description = "Set up db4o source symlinks for Ant plugins that require it"
     group = "build"
     
+    outputs.upToDateWhen {
+        BuildConfig.ANT_PLUGINS_NEEDING_DB4O.all { pluginName ->
+            val srcDir = file("projects/${pluginName}/db4o-7.4/src")
+            Files.isSymbolicLink(srcDir.toPath())
+        }
+    }
+    
     doLast {
         val realDb4oDir = file("projects/db4o-7.4")
         if (realDb4oDir.exists()) {
@@ -392,6 +421,13 @@ val setupGradlePluginDb4o = tasks.register("setupGradlePluginDb4o") {
     description = "Copy shared db4o JAR to Gradle plugins that need it"
     group = "build"
     dependsOn(createDb4oJar)
+    
+    outputs.upToDateWhen {
+        val db4oJar = file("build/deps/${BuildConfig.DB4O_JAR_NAME}")
+        db4oJar.exists() && BuildConfig.GRADLE_PLUGINS_NEEDING_DB4O.all { pluginName ->
+            file("projects/${pluginName}/db4o-7.4/db4o.jar").exists()
+        }
+    }
     
     doLast {
         val db4oJar = file("build/deps/${BuildConfig.DB4O_JAR_NAME}")
@@ -458,16 +494,16 @@ val buildGradlePlugins = tasks.register("buildGradlePlugins") {
                 val gradleArgs = when {
                     !isWindows && gradlewScript.exists() -> {
                         if (skipTests) {
-                            listOf("bash", gradlewScript.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar", "-x", "compileTestJava", "-x", "test")
+                            listOf("bash", "./gradlew", "clean", "jar", "-x", "compileTestJava", "-x", "test")
                         } else {
-                            listOf("bash", gradlewScript.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar")
+                            listOf("bash", "./gradlew", "clean", "jar")
                         }
                     }
                     isWindows && gradlewBat.exists() -> {
                         if (skipTests) {
-                            listOf("cmd", "/c", gradlewBat.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar", "-x", "compileTestJava", "-x", "test")
+                            listOf("cmd", "/c", "gradlew.bat", "clean", "jar", "-x", "compileTestJava", "-x", "test")
                         } else {
-                            listOf("cmd", "/c", gradlewBat.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar")
+                            listOf("cmd", "/c", "gradlew.bat", "clean", "jar")
                         }
                     }
                     else -> {
@@ -477,8 +513,29 @@ val buildGradlePlugins = tasks.register("buildGradlePlugins") {
                 }
                 
                 gradleArgs?.let { args ->
-                    if (executeCommand(args, workingDir = plugin.dir) == 0) {
-                        println("Successfully built ${plugin.name}")
+                    // Temporarily create an isolated settings.gradle to prevent buildSrc interference
+                    val originalSettings = File(plugin.dir, "settings.gradle")
+                    val tempSettings = File(plugin.dir, "settings.gradle.temp")
+                    val hasOriginalSettings = originalSettings.exists()
+                    
+                    if (hasOriginalSettings) {
+                        originalSettings.copyTo(tempSettings, overwrite = true)
+                    }
+                    
+                    // Create minimal settings.gradle to isolate the build
+                    originalSettings.writeText("rootProject.name = '${plugin.name.removePrefix("plugin-")}'")
+                    
+                    try {
+                        if (executeCommand(args, workingDir = plugin.dir) == 0) {
+                            println("Successfully built ${plugin.name}")
+                        }
+                    } finally {
+                        // Restore original settings
+                        originalSettings.delete()
+                        if (hasOriginalSettings) {
+                            tempSettings.copyTo(originalSettings)
+                            tempSettings.delete()
+                        }
                     }
                 }
             }
@@ -490,7 +547,8 @@ val buildGradlePlugins = tasks.register("buildGradlePlugins") {
 val buildAntPlugins = tasks.register("buildAntPlugins") {
     description = "Build all Ant-based plugins"
     group = "build"
-    dependsOn(buildFred, downloadDependencies, createDb4oJar)
+    mustRunAfter(buildFred)
+    dependsOn(downloadDependencies, createDb4oJar)
     
     doLast {
         val db4oJar = file("build/deps/${BuildConfig.DB4O_JAR_NAME}")
@@ -502,13 +560,13 @@ val buildAntPlugins = tasks.register("buildAntPlugins") {
             // Delegate to plugin-specific build logic
             when (plugin.name) {
                 "plugin-Freereader" -> FreereaderPlugin.buildFreereader(
-                    plugin.dir, buildDir, db4oJar, ::executeCommand
+                    plugin.dir, layout.buildDirectory.get().asFile, db4oJar, ::executeCommand
                 )
                 "plugin-Library" -> LibraryPlugin.buildLibrary(
-                    plugin.dir, buildDir, ::executeCommand
+                    plugin.dir, layout.buildDirectory.get().asFile, ::executeCommand
                 )
                 "plugin-SNMP" -> SNMPPlugin.buildSNMP(
-                    plugin.dir, buildDir, ::executeCommand
+                    plugin.dir, layout.buildDirectory.get().asFile, ::executeCommand
                 )
                 "plugin-JSTUN" -> JSTUNPlugin.buildJSTUN(
                     plugin.dir, file("build/deps/wrapper.jar"), ::executeCommand
@@ -542,10 +600,14 @@ val collectJars = tasks.register("collectJars") {
     group = "build"
     dependsOn(buildGradlePlugins, buildAntPlugins)
     
-    doLast {
-        buildLibsDir.deleteRecursively()
+    outputs.dir(buildLibsDir)
+    
+    doFirst {
+        delete(buildLibsDir)
         buildLibsDir.mkdirs()
-        
+    }
+    
+    doLast {
         println("Collecting JARs into ${buildLibsDir.absolutePath}")
         
         var jarCount = 0
@@ -558,8 +620,8 @@ val collectJars = tasks.register("collectJars") {
             
             jarFiles.forEach { jarFile ->
                 val targetName = "${plugin.name}-${jarFile.name}"
-                jarFile.copyTo(file("${buildLibsDir}/${targetName}"), overwrite = true)
-                println("Copying ${jarFile.name} from ${plugin.name}")
+                val targetFile = file("${buildLibsDir}/${targetName}")
+                jarFile.copyTo(targetFile, overwrite = true)
                 jarCount++
             }
         }
@@ -579,20 +641,21 @@ val collectJars = tasks.register("collectJars") {
 tasks.register("buildAll") {
     description = "Build all plugins, collect JARs, and create shadow JARs"
     group = "build"
-    dependsOn(collectJars, createShadowJars)
+    dependsOn(buildFred, collectJars, createShadowJars)
     finalizedBy(cleanInstalledWrappers)
 }
 
 // Clean task
-tasks.register("cleanAll") {
+tasks.register<Delete>("cleanAll") {
     description = "Clean all plugin builds and the collected JARs"
     group = "build"
     dependsOn(cleanInstalledWrappers)
     
+    delete(buildLibsDir, shadowLibsDir, buildDepsDir, tempBuildDir)
+    
+    
     doLast {
-        buildLibsDir.deleteRecursively()
-        
-        allPlugins.forEach { plugin ->
+        allPlugins.parallelStream().forEach { plugin ->
             println("Cleaning ${plugin.name}")
             
             val cleanCommand = when {
@@ -635,12 +698,11 @@ tasks.register("listPlugins") {
 tasks.register("buildAllVerbose") {
     description = "Build all plugins with verbose error output"
     group = "build"
+    dependsOn("buildAll")
     
     doFirst {
-        System.setProperty("gradle.verbose", "true")
+        gradle.startParameter.logLevel = LogLevel.DEBUG
     }
-    
-    finalizedBy("buildAll")
 }
 
 tasks.register("buildGradleOnly") {
@@ -699,10 +761,16 @@ tasks.register("diagnoseBuildIssues") {
         println("\n4. Available Tasks:")
         println("   ./gradlew buildAll            - Build all plugins (default)")
         println("   ./gradlew buildGradleOnly     - Build only Gradle plugins")
+        println("   ./gradlew buildAntPlugins     - Build only Ant plugins")
         println("   ./gradlew buildAllVerbose     - Build with detailed error output")
+        println("   ./gradlew createShadowJars    - Create shadow JARs with package relocation")
         println("   ./gradlew listPlugins         - List all discovered plugins")
         println("   ./gradlew diagnoseBuildIssues - Show this diagnosis")
         println("   ./gradlew cleanAll            - Clean all builds")
+        println("\n5. Performance Tips:")
+        println("   - Use --parallel for parallel execution")
+        println("   - Use --build-cache to enable build caching")
+        println("   - Use --configuration-cache for faster configuration")
     }
 }
 
@@ -731,7 +799,7 @@ val createShadowJars = tasks.register("createShadowJars") {
             
             try {
                 // Create a proper ShadowJar task for each JAR
-                val tempShadowTask = tasks.create("tempShadow${originalJar.nameWithoutExtension}", ShadowJar::class.java) {
+                val tempShadowTask = tasks.register("tempShadow${originalJar.nameWithoutExtension}", ShadowJar::class.java) {
                     archiveFileName.set(shadowJarName)
                     destinationDirectory.set(shadowLibsDir)
                     from(zipTree(originalJar))
@@ -760,8 +828,9 @@ val createShadowJars = tasks.register("createShadowJars") {
                 }
                 
                 // Execute the shadow task
-                tempShadowTask.actions.forEach { action ->
-                    action.execute(tempShadowTask)
+                val task = tempShadowTask.get()
+                task.actions.forEach { action ->
+                    action.execute(task)
                 }
                 
                 if (shadowJar.exists()) {
