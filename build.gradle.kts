@@ -713,6 +713,7 @@ val createShadowJars = tasks.register("createShadowJars") {
         
         println("Creating shadow JARs with package relocation...")
         println("Relocating: freenet.* -> network.crypta.*")
+        println("Relocating: com.mitchellbosecke.* -> io.pebbletemplates.*")
         
         val jarFiles = buildLibsDir.listFiles { it.extension == "jar" }?.sorted() ?: emptyList()
         var successCount = 0
@@ -730,8 +731,9 @@ val createShadowJars = tasks.register("createShadowJars") {
                     destinationDirectory.set(shadowLibsDir)
                     from(zipTree(originalJar))
                     
-                    // Relocate freenet packages with proper bytecode transformation
+                    // Relocate packages with proper bytecode transformation
                     relocate("freenet", "network.crypta")
+                    relocate("com.mitchellbosecke", "io.pebbletemplates")
                     
                     // Exclude duplicates  
                     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
