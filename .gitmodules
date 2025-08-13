@@ -97,3 +97,6 @@
 	path = projects/plugin-KeepAlive
 	url = https://github.com/hyphanet/plugin-KeepAlive.git
 	ignore = all
+[submodule "projects/plugin-sharesite"]
+	path = projects/plugin-sharesite
+	url = https://github.com/hyphanet/plugin-sharesite.git

@@ -161,7 +161,9 @@ kotlin.caching.enabled=true
 - All built JARs are collected in `./build/libs/` with plugin-specific names
 - Shadow JARs with relocated packages are created in `./build/libs-crypta/`
 - Build artifacts are isolated and don't affect git status
-- Successfully builds 20/20 plugins (100% success rate) including all db4o-dependent plugins
+- Successfully builds 22/22 plugins (100% success rate) including all db4o-dependent plugins
+  - 6 Gradle-based plugins: WebOfTrust, Freetalk, FlogHelper, KeepAlive, Freemail, KeyUtils
+  - 16 Ant-based plugins: HelloWorld, ThawIndexBrowser, XMLLibrarian, TestGallery, Freereader, Librarian, HelloFCP, UPnP, Library, MDNSDiscovery, sharesite, SNMP, JSTUN, Spider, XMLSpider
 - Advanced compatibility fixes enable all plugins to build with current Freenet API
 - Shadow JARs include bytecode-level package relocation:
   - `freenet.*` → `network.crypta.*`
