@@ -444,37 +444,42 @@ val buildGradlePlugins = tasks.register("buildGradlePlugins") {
     
     doLast {
         gradlePlugins.forEach { plugin ->
-            println("Building Gradle plugin: ${plugin.name}")
-            
-            val gradlewScript = file("${plugin.dir}/gradlew")
-            val isWindows = System.getProperty("os.name").lowercase().contains("windows")
-            val gradlewBat = file("${plugin.dir}/gradlew.bat")
-            
-            val skipTests = plugin.name in BuildConfig.PLUGINS_NEEDING_WRAPPER
-            val gradleArgs = when {
-                !isWindows && gradlewScript.exists() -> {
-                    if (skipTests) {
-                        listOf("bash", gradlewScript.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar", "-x", "compileTestJava", "-x", "test")
-                    } else {
-                        listOf("bash", gradlewScript.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar")
+            // Use special handler for Freemail to patch WebPage.java
+            if (plugin.name == "plugin-Freemail") {
+                FreemailPlugin.buildFreemail(plugin.dir, ::executeCommand)
+            } else {
+                println("Building Gradle plugin: ${plugin.name}")
+                
+                val gradlewScript = file("${plugin.dir}/gradlew")
+                val isWindows = System.getProperty("os.name").lowercase().contains("windows")
+                val gradlewBat = file("${plugin.dir}/gradlew.bat")
+                
+                val skipTests = plugin.name in BuildConfig.PLUGINS_NEEDING_WRAPPER
+                val gradleArgs = when {
+                    !isWindows && gradlewScript.exists() -> {
+                        if (skipTests) {
+                            listOf("bash", gradlewScript.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar", "-x", "compileTestJava", "-x", "test")
+                        } else {
+                            listOf("bash", gradlewScript.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar")
+                        }
+                    }
+                    isWindows && gradlewBat.exists() -> {
+                        if (skipTests) {
+                            listOf("cmd", "/c", gradlewBat.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar", "-x", "compileTestJava", "-x", "test")
+                        } else {
+                            listOf("cmd", "/c", gradlewBat.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar")
+                        }
+                    }
+                    else -> {
+                        println("Warning: No Gradle wrapper found for ${plugin.name}")
+                        null
                     }
                 }
-                isWindows && gradlewBat.exists() -> {
-                    if (skipTests) {
-                        listOf("cmd", "/c", gradlewBat.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar", "-x", "compileTestJava", "-x", "test")
-                    } else {
-                        listOf("cmd", "/c", gradlewBat.absolutePath, "-p", plugin.dir.absolutePath, "clean", "jar")
+                
+                gradleArgs?.let { args ->
+                    if (executeCommand(args, workingDir = plugin.dir) == 0) {
+                        println("Successfully built ${plugin.name}")
                     }
-                }
-                else -> {
-                    println("Warning: No Gradle wrapper found for ${plugin.name}")
-                    null
-                }
-            }
-            
-            gradleArgs?.let { args ->
-                if (executeCommand(args, workingDir = plugin.dir) == 0) {
-                    println("Successfully built ${plugin.name}")
                 }
             }
         }

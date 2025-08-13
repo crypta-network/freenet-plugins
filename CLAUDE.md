@@ -82,6 +82,12 @@ The build system includes special handling for complex plugins:
 - **Wrapper source for other plugins**: Serves as source for Gradle wrapper installation for plugins needing them
 - **Separate cleanup handling**: Uses dedicated cleanup logic that preserves original wrapper files while restoring build.gradle
 
+#### plugin-Freemail Integration
+- **Template loader path fix**: Patches WebPage.java to change loader.setPrefix from "/resources/templates/" to "templates/"
+- **Classpath compatibility**: Fixes template loading for standard Java layout where resources/ is not part of classpath root
+- **Non-invasive patching**: Temporarily patches source during build, automatically restored after compilation
+- **ClassLoader compliance**: Removes leading slash for proper ClassLoader.getResourceAsStream() usage
+
 #### plugin-KeyUtils Integration
 - **Dependency resolution fixes**: Replaces unresolvable Maven dependency `fred:build+` with local file dependencies to freenet.jar and freenet-ext.jar
 - **Java compatibility fixes**: Updates Java version from 1.7 to 1.8 for modern compatibility
