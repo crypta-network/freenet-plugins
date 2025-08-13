@@ -79,8 +79,10 @@ The build system includes special handling for complex plugins:
 
 #### plugin-FlogHelper Integration
 - **Java compatibility fixes**: Automatically patches build.gradle to use Java 8 instead of Java 7 during builds
+- **Manifest typo fix**: Corrects Plugin-Main-Class from 'plugins.flophelper.FlogHelper' to 'plugins.floghelper.FlogHelper'
+- **Build isolation**: Uses temporary settings.gradle to prevent buildSrc interference during build
 - **Original wrapper preservation**: Maintains plugin's original Gradle wrapper files without modification
-- **Non-invasive patching**: Temporarily applies Java version fixes during build, automatically restored after completion
+- **Non-invasive patching**: Temporarily applies fixes during build, automatically restored after completion
 - **Wrapper source for other plugins**: Serves as source for Gradle wrapper installation for plugins needing them
 - **Separate cleanup handling**: Uses dedicated cleanup logic that preserves original wrapper files while restoring build.gradle
 
@@ -187,6 +189,8 @@ The build system uses a modular design with plugin-specific logic separated into
 - `plugins/LibraryPlugin.kt` - Library plugin generics patching and Progress interface handling
 - `plugins/SNMPPlugin.kt` - SNMP plugin IOStatisticCollector API compatibility fixes
 - `plugins/JSTUNPlugin.kt` - JSTUN plugin Tanuki Wrapper integration
+- `plugins/FlogHelperPlugin.kt` - FlogHelper manifest typo fix and build isolation
+- `plugins/FreemailPlugin.kt` - Freemail template loader path fixes
 
 **Benefits**:
 - **Maintainable**: Plugin-specific complexity isolated from main build file

@@ -480,10 +480,11 @@ val buildGradlePlugins = tasks.register("buildGradlePlugins") {
     
     doLast {
         gradlePlugins.forEach { plugin ->
-            // Use special handler for Freemail to patch WebPage.java
-            if (plugin.name == "plugin-Freemail") {
-                FreemailPlugin.buildFreemail(plugin.dir, ::executeCommand)
-            } else {
+            // Use special handlers for plugins that need specific patches
+            when (plugin.name) {
+                "plugin-Freemail" -> FreemailPlugin.buildFreemail(plugin.dir, ::executeCommand)
+                "plugin-FlogHelper" -> FlogHelperPlugin.buildFlogHelper(plugin.dir, ::executeCommand)
+                else -> {
                 println("Building Gradle plugin: ${plugin.name}")
                 
                 val gradlewScript = file("${plugin.dir}/gradlew")
@@ -537,6 +538,7 @@ val buildGradlePlugins = tasks.register("buildGradlePlugins") {
                             tempSettings.delete()
                         }
                     }
+                }
                 }
             }
         }
