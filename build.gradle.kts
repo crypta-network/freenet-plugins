@@ -577,9 +577,9 @@ val collectJars = tasks.register("collectJars") {
 
 // Main build task
 tasks.register("buildAll") {
-    description = "Build all plugins and collect JARs"
+    description = "Build all plugins, collect JARs, and create shadow JARs"
     group = "build"
-    dependsOn(collectJars)
+    dependsOn(collectJars, createShadowJars)
     finalizedBy(cleanInstalledWrappers)
 }
 

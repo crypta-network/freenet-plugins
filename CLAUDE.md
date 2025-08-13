@@ -28,10 +28,12 @@ This repository includes a comprehensive, modular Gradle-based build system that
 - **Scalable plugin handling**: Easy to add new plugin-specific build logic without cluttering main build file
 
 ### Available Tasks
-- `./gradlew buildAll` - Build all plugins and collect JARs (default)
+- `./gradlew buildAll` - Build all plugins, collect JARs, and create shadow JARs (default)
 - `./gradlew buildGradlePlugins` - Build only Gradle plugins
 - `./gradlew buildAntPlugins` - Build only Ant plugins
 - `./gradlew buildFred` - Build Fred (Freenet core dependencies)
+- `./gradlew createShadowJars` - Create shadow JARs with package relocation
+- `./gradlew buildAllWithShadow` - Build all and create shadow JARs separately
 - `./gradlew downloadDependencies` - Download missing external dependencies
 - `./gradlew installGradleWrappers` - Install Gradle wrappers for plugins that need them
 - `./gradlew cleanInstalledWrappers` - Remove temporarily installed wrappers and restore originals
@@ -116,10 +118,14 @@ The build system provides comprehensive db4o database support for plugins that r
 
 ### Build Output
 - All built JARs are collected in `./build/libs/` with plugin-specific names
+- Shadow JARs with relocated packages are created in `./build/libs-crypta/`
 - Build artifacts are isolated and don't affect git status
-- Successfully builds 20/20 plugins (100% success rate) including all db4o-dependent plugins (XMLLibrarian, XMLSpider, WebOfTrust, Freetalk, Freereader)
-- Advanced compatibility fixes enable Library, SNMP, JSTUN, FlogHelper, KeyUtils, and KeepAlive plugins to build with current Freenet API
-- JARs contain authentic compiled functionality (larger sizes for db4o plugins reflect real database integration)
+- Successfully builds 20/20 plugins (100% success rate) including all db4o-dependent plugins
+- Advanced compatibility fixes enable all plugins to build with current Freenet API
+- Shadow JARs include bytecode-level package relocation:
+  - `freenet.*` → `network.crypta.*`
+  - `com.mitchellbosecke.*` → `io.pebbletemplates.*`
+- Plugin manifests (including Plugin-Main-Class) are preserved in shadow JARs
 - 3 plugins are intentionally excluded: plugin-Echo (extensive API incompatibilities), plugin-Freemail-v0.1 (superseded), plugin-old-bookmarkplugin (deprecated)
 
 ### Dependencies
