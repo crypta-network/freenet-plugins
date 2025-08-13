@@ -1,30 +1,10 @@
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import plugins.*
 
 plugins {
     base
-}
-
-// Configuration constants
-object Config {
-    const val JAVA_VERSION = "8"
-    const val GRADLE_WRAPPER_VERSION = "4.10.3"
-    const val DB4O_JAR_NAME = "db4o-7.4.jar"
-    
-    val PLUGINS_NEEDING_WRAPPER = listOf("plugin-WebOfTrust", "plugin-Freetalk")
-    val PLUGINS_NEEDING_JAVA_PATCH_ONLY = listOf("plugin-FlogHelper", "plugin-KeyUtils")
-    val ANT_PLUGINS_NEEDING_DB4O = listOf("plugin-XMLLibrarian", "plugin-XMLSpider")
-    val ANT_PLUGINS_NEEDING_DB4O_JAR_ONLY = listOf("plugin-Freereader")
-    val GRADLE_PLUGINS_NEEDING_DB4O = listOf("plugin-WebOfTrust", "plugin-Freetalk")
-    val ALL_PLUGINS_NEEDING_DB4O = ANT_PLUGINS_NEEDING_DB4O + GRADLE_PLUGINS_NEEDING_DB4O
-    
-    val EXTERNAL_DEPENDENCIES = mapOf(
-        "snakeyaml-1.5.jar" to "https://repo1.maven.org/maven2/org/yaml/snakeyaml/1.5/snakeyaml-1.5.jar",
-        "xom-1.3.8.jar" to "https://repo1.maven.org/maven2/xom/xom/1.3.8/xom-1.3.8.jar",
-        "bcprov-jdk15on-1.70.jar" to "https://repo1.maven.org/maven2/org/bouncycastle/bcprov-jdk15on/1.70/bcprov-jdk15on-1.70.jar",
-        "wrapper-delta-pack-3.6.2.tar.gz" to "https://download.tanukisoftware.com/wrapper/3.6.2/wrapper-delta-pack-3.6.2.tar.gz"
-    )
 }
 
 // Directory references
@@ -34,13 +14,6 @@ val buildDepsDir = file("build/deps")
 val tempBuildDir = file("build/temp-build-files")
 
 // Plugin discovery
-data class PluginInfo(
-    val dir: File,
-    val name: String,
-    val isGradle: Boolean,
-    val isAnt: Boolean
-)
-
 val allPlugins: List<PluginInfo> by lazy {
     projectsDir.listFiles { file -> 
         file.isDirectory && file.name.startsWith("plugin-")
@@ -59,112 +32,9 @@ val antPlugins = allPlugins.filter { it.isAnt && !it.isGradle }
 
 println("Found ${gradlePlugins.size} Gradle plugins and ${antPlugins.size} Ant plugins")
 
-// Utility functions
-fun executeCommand(
-    command: List<String>,
-    workingDir: File? = null,
-    printOutput: Boolean = false,
-    printErrors: Boolean = true
-): Int {
-    return try {
-        val processBuilder = ProcessBuilder(command).apply {
-            workingDir?.let { directory(it) }
-            redirectErrorStream(true)
-        }
-        
-        val process = processBuilder.start()
-        val output = process.inputStream.bufferedReader().readText()
-        val exitCode = process.waitFor()
-        
-        when {
-            exitCode != 0 && printErrors -> {
-                println("Command failed (exit code: $exitCode): ${command.joinToString(" ")}")
-                if (System.getProperty("gradle.verbose", "false") == "true" || printOutput) {
-                    println(output)
-                }
-            }
-            printOutput -> println(output)
-        }
-        
-        exitCode
-    } catch (e: Exception) {
-        println("Error executing command: ${e.message}")
-        -1
-    }
-}
-
-fun createSymlink(target: Path, link: Path): Boolean {
-    return try {
-        link.parent?.toFile()?.mkdirs()
-        if (Files.exists(link)) {
-            if (Files.isSymbolicLink(link)) {
-                Files.delete(link)
-            } else {
-                link.toFile().deleteRecursively()
-            }
-        }
-        Files.createSymbolicLink(link, target)
-        true
-    } catch (e: Exception) {
-        println("Failed to create symlink from $link to $target: ${e.message}")
-        false
-    }
-}
-
-fun downloadFile(url: String, targetFile: File): Boolean {
-    return try {
-        if (!targetFile.exists()) {
-            println("Downloading ${targetFile.name}...")
-            targetFile.parentFile.mkdirs()
-            java.net.URI(url).toURL().openStream().use { input ->
-                targetFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
-            println("Downloaded ${targetFile.name}")
-        }
-        true
-    } catch (e: Exception) {
-        println("Failed to download ${targetFile.name}: ${e.message}")
-        false
-    }
-}
-
-fun patchJavaVersion(content: String, isGradle: Boolean): String {
-    return if (isGradle) {
-        content
-            .replace(Regex("sourceCompatibility\\s*=\\s*1\\.7"), "sourceCompatibility = 1.8")
-            .replace(Regex("targetCompatibility\\s*=\\s*1\\.7"), "targetCompatibility = 1.8")
-            .replace(Regex("sourceCompatibility\\s*=\\s*7"), "sourceCompatibility = 8")
-            .replace(Regex("targetCompatibility\\s*=\\s*7"), "targetCompatibility = 8")
-            .replace("JavaVersion.VERSION_1_7", "JavaVersion.VERSION_1_8")
-            .replace("sourceCompatibility = targetCompatibility = 7", "sourceCompatibility = targetCompatibility = 8")
-            .replace("\"-Djavac.source.version=\" + sourceCompatibility", "\"-Djavac.source.version=8\"")
-            .replace("\"-Djavac.target.version=\" + targetCompatibility", "\"-Djavac.target.version=8\"")
-            .replace("archiveBaseName = ", "baseName = ")
-            .replace("destinationDirectory = ", "destinationDir = ")
-    } else {
-        content
-            .replace(Regex("source=\"1\\.5\""), "source=\"8\"")
-            .replace(Regex("target=\"1\\.5\""), "target=\"8\"")
-            .replace(Regex("source-version.*value=\"1\\.5\""), "source-version\" value=\"8\"")
-            .replace(Regex("\\-Djavac\\.source\\.version=\"?1\\.5\"?"), "-Djavac.source.version=8")
-            .replace(Regex("\\-Djavac\\.target\\.version=\"?1\\.5\"?"), "-Djavac.target.version=8")
-    }
-}
-
-fun patchKeyUtilsBuildGradle(content: String): String {
-    return content
-        .replace(Regex("sourceCompatibility\\s*=\\s*1\\.7"), "sourceCompatibility = 1.8")
-        .replace(Regex("targetCompatibility\\s*=\\s*1\\.7"), "targetCompatibility = 1.8")
-        .replace(
-            "compile group: 'org.freenetproject', name: 'fred', version: 'build+'",
-            "compileOnly files('../fred/build/libs/freenet.jar')\n    compileOnly files('../fred/lib/freenet-ext.jar')"
-        )
-        .replace(
-            "getMTime(\"src/main/java/plugins/KeyUtils/Version.java\")",
-            "new Date()"
-        )
+// Helper function for command execution
+fun executeCommand(command: List<String>, workingDir: File? = null): Int {
+    return BuildUtils.executeCommand(command, workingDir)
 }
 
 // Task: Build Fred (Freenet core dependencies)
@@ -206,11 +76,11 @@ val buildFred = tasks.register("buildFred") {
             distDir.mkdirs()
             libDir.mkdirs()
             
-            createSymlink(
+            BuildUtils.createSymlink(
                 Paths.get("../build/output/freenet.jar"),
                 file("projects/fred/dist/freenet.jar").toPath()
             )
-            createSymlink(
+            BuildUtils.createSymlink(
                 Paths.get("../build/output/freenet-ext-29.jar"),
                 file("projects/fred/lib/freenet-ext.jar").toPath()
             )
@@ -227,8 +97,8 @@ val downloadDependencies = tasks.register("downloadDependencies") {
         println("Downloading missing external dependencies...")
         buildDepsDir.mkdirs()
         
-        Config.EXTERNAL_DEPENDENCIES.forEach { (fileName, url) ->
-            downloadFile(url, file("${buildDepsDir}/${fileName}"))
+        BuildConfig.EXTERNAL_DEPENDENCIES.forEach { (fileName, url) ->
+            BuildUtils.downloadFile(url, file("${buildDepsDir}/${fileName}"))
         }
         
         // Setup plugin-specific dependencies
@@ -276,7 +146,6 @@ fun setupPluginDependencies() {
         snakeYamlSource.copyTo(file("projects/plugin-Library/lib/snakeyaml-1.5.jar"), overwrite = true)
     }
     
-    
     // Freemail BouncyCastle symlink
     val fredBcJar = file("projects/fred/build/output/bcprov-jdk15on-1.59.jar")
     val freemailBcJar = file("projects/fred/lib/bcprov-jdk15on-151.jar")
@@ -300,7 +169,7 @@ val installGradleWrappers = tasks.register("installGradleWrappers") {
             "gradle/wrapper/gradle-wrapper.properties" to "gradle/wrapper/gradle-wrapper.properties"
         )
         
-        Config.PLUGINS_NEEDING_WRAPPER.forEach { pluginName ->
+        BuildConfig.PLUGINS_NEEDING_WRAPPER.forEach { pluginName ->
             val pluginDir = file("projects/${pluginName}")
             if (pluginDir.exists() && !file("${pluginDir}/gradlew").exists()) {
                 println("Installing Gradle wrapper for ${pluginName}...")
@@ -323,7 +192,7 @@ val installGradleWrappers = tasks.register("installGradleWrappers") {
                 val buildGradleFile = File(pluginDir, "build.gradle")
                 if (buildGradleFile.exists()) {
                     val original = buildGradleFile.readText()
-                    val patched = patchJavaVersion(original, true)
+                    val patched = BuildUtils.patchJavaVersion(original, true)
                     if (original != patched) {
                         File(pluginDir, "build.gradle.original").writeText(original)
                         buildGradleFile.writeText(patched)
@@ -332,7 +201,7 @@ val installGradleWrappers = tasks.register("installGradleWrappers") {
                 }
                 
                 // Create db4o symlink if needed
-                if (pluginName in Config.GRADLE_PLUGINS_NEEDING_DB4O) {
+                if (pluginName in BuildConfig.GRADLE_PLUGINS_NEEDING_DB4O) {
                     val db4oDir = File(pluginDir, "db4o-7.4")
                     if (db4oDir.exists() && !Files.isSymbolicLink(db4oDir.toPath())) {
                         db4oDir.deleteRecursively()
@@ -345,7 +214,7 @@ val installGradleWrappers = tasks.register("installGradleWrappers") {
         }
         
         // Handle plugins that only need Java version patching (no wrapper installation)
-        Config.PLUGINS_NEEDING_JAVA_PATCH_ONLY.forEach { pluginName ->
+        BuildConfig.PLUGINS_NEEDING_JAVA_PATCH_ONLY.forEach { pluginName ->
             val pluginDir = file("projects/${pluginName}")
             if (pluginDir.exists()) {
                 // Patch build.gradle for Java 8 compatibility
@@ -353,9 +222,9 @@ val installGradleWrappers = tasks.register("installGradleWrappers") {
                 if (buildGradleFile.exists()) {
                     val original = buildGradleFile.readText()
                     val patched = if (pluginName == "plugin-KeyUtils") {
-                        patchKeyUtilsBuildGradle(original)
+                        BuildUtils.patchKeyUtilsBuildGradle(original)
                     } else {
-                        patchJavaVersion(original, true)
+                        BuildUtils.patchJavaVersion(original, true)
                     }
                     if (original != patched) {
                         File(pluginDir, "build.gradle.original").writeText(original)
@@ -375,7 +244,7 @@ val cleanInstalledWrappers = tasks.register("cleanInstalledWrappers") {
     dependsOn("cleanupDb4oSupport")
     
     doLast {
-        Config.PLUGINS_NEEDING_WRAPPER.forEach { pluginName ->
+        BuildConfig.PLUGINS_NEEDING_WRAPPER.forEach { pluginName ->
             val pluginDir = file("projects/${pluginName}")
             if (pluginDir.exists()) {
                 // Remove wrapper files
@@ -403,7 +272,7 @@ val cleanInstalledWrappers = tasks.register("cleanInstalledWrappers") {
         }
         
         // Handle plugins that only need Java version patching cleanup (restore build.gradle only)
-        Config.PLUGINS_NEEDING_JAVA_PATCH_ONLY.forEach { pluginName ->
+        BuildConfig.PLUGINS_NEEDING_JAVA_PATCH_ONLY.forEach { pluginName ->
             val pluginDir = file("projects/${pluginName}")
             if (pluginDir.exists()) {
                 // Restore original build.gradle
@@ -424,12 +293,12 @@ val createDb4oJar = tasks.register("createDb4oJar") {
     group = "build"
     dependsOn("setupAntPluginDb4o")
     
-    val db4oJar = file("build/deps/${Config.DB4O_JAR_NAME}")
+    val db4oJar = file("build/deps/${BuildConfig.DB4O_JAR_NAME}")
     outputs.file(db4oJar)
     
     doLast {
-        if (Config.ALL_PLUGINS_NEEDING_DB4O.isNotEmpty()) {
-            val db4oSrcDir = Config.ALL_PLUGINS_NEEDING_DB4O
+        if (BuildConfig.ALL_PLUGINS_NEEDING_DB4O.isNotEmpty()) {
+            val db4oSrcDir = BuildConfig.ALL_PLUGINS_NEEDING_DB4O
                 .map { file("projects/${it}/db4o-7.4/src") }
                 .find { it.exists() }
             
@@ -495,7 +364,7 @@ val setupAntPluginDb4o = tasks.register("setupAntPluginDb4o") {
     doLast {
         val realDb4oDir = file("projects/db4o-7.4")
         if (realDb4oDir.exists()) {
-            Config.ANT_PLUGINS_NEEDING_DB4O.forEach { pluginName ->
+            BuildConfig.ANT_PLUGINS_NEEDING_DB4O.forEach { pluginName ->
                 val pluginDir = file("projects/${pluginName}")
                 if (pluginDir.exists()) {
                     println("Setting up db4o source symlink for ${pluginName}...")
@@ -522,9 +391,9 @@ val setupGradlePluginDb4o = tasks.register("setupGradlePluginDb4o") {
     dependsOn(createDb4oJar)
     
     doLast {
-        val db4oJar = file("build/deps/${Config.DB4O_JAR_NAME}")
+        val db4oJar = file("build/deps/${BuildConfig.DB4O_JAR_NAME}")
         if (db4oJar.exists()) {
-            Config.GRADLE_PLUGINS_NEEDING_DB4O.forEach { pluginName ->
+            BuildConfig.GRADLE_PLUGINS_NEEDING_DB4O.forEach { pluginName ->
                 val pluginDir = file("projects/${pluginName}")
                 if (pluginDir.exists()) {
                     val pluginDb4oDir = File(pluginDir, "db4o-7.4")
@@ -544,7 +413,7 @@ val cleanupDb4oSupport = tasks.register("cleanupDb4oSupport") {
     
     doLast {
         // Clean Ant plugins
-        Config.ANT_PLUGINS_NEEDING_DB4O.forEach { pluginName ->
+        BuildConfig.ANT_PLUGINS_NEEDING_DB4O.forEach { pluginName ->
             val srcDir = file("projects/${pluginName}/db4o-7.4/src")
             if (Files.isSymbolicLink(srcDir.toPath())) {
                 srcDir.delete()
@@ -553,7 +422,7 @@ val cleanupDb4oSupport = tasks.register("cleanupDb4oSupport") {
         }
         
         // Clean Gradle plugins
-        Config.GRADLE_PLUGINS_NEEDING_DB4O.forEach { pluginName ->
+        BuildConfig.GRADLE_PLUGINS_NEEDING_DB4O.forEach { pluginName ->
             val db4oJar = file("projects/${pluginName}/db4o-7.4/db4o.jar")
             if (db4oJar.exists()) {
                 db4oJar.delete()
@@ -578,7 +447,7 @@ val buildGradlePlugins = tasks.register("buildGradlePlugins") {
             val isWindows = System.getProperty("os.name").lowercase().contains("windows")
             val gradlewBat = file("${plugin.dir}/gradlew.bat")
             
-            val skipTests = plugin.name in Config.PLUGINS_NEEDING_WRAPPER
+            val skipTests = plugin.name in BuildConfig.PLUGINS_NEEDING_WRAPPER
             val gradleArgs = when {
                 !isWindows && gradlewScript.exists() -> {
                     if (skipTests) {
@@ -616,67 +485,29 @@ val buildAntPlugins = tasks.register("buildAntPlugins") {
     dependsOn(buildFred, downloadDependencies, createDb4oJar)
     
     doLast {
-        val db4oJar = file("build/deps/${Config.DB4O_JAR_NAME}")
+        val db4oJar = file("build/deps/${BuildConfig.DB4O_JAR_NAME}")
         
         antPlugins.forEach { plugin ->
-            println("Building Ant plugin: ${plugin.name}")
+            val needsDb4o = plugin.name in BuildConfig.ANT_PLUGINS_NEEDING_DB4O || 
+                           plugin.name in BuildConfig.ANT_PLUGINS_NEEDING_DB4O_JAR_ONLY
             
-            val needsDb4o = plugin.name in Config.ANT_PLUGINS_NEEDING_DB4O || plugin.name in Config.ANT_PLUGINS_NEEDING_DB4O_JAR_ONLY
-            
-            // Special handling for plugin-Freereader
-            if (plugin.name == "plugin-Freereader") {
-                val buildXml = File(plugin.dir, "build.xml")
-                val tempBuildXml = File(buildDir, "temp-build-files/plugin-Freereader-build.xml")
-                tempBuildXml.parentFile.mkdirs()
-                
-                // Create a modified build.xml that uses Java 8 (minimum supported by Java 21)
-                // but with relaxed type checking that might help with db4o compatibility
-                val content = buildXml.readText()
-                    .replace("source=\"1.6\"", "source=\"8\"")
-                    .replace("target=\"1.6\"", "target=\"8\"")
-                tempBuildXml.writeText(content)
-                
-                val antCommand = mutableListOf(
-                    "ant", "-f", tempBuildXml.absolutePath,
-                    "-Dbasedir=${plugin.dir.absolutePath}",
-                    "clean", "main",
-                    "-Dant.file.failonerror=false"
+            // Delegate to plugin-specific build logic
+            when (plugin.name) {
+                "plugin-Freereader" -> FreereaderPlugin.buildFreereader(
+                    plugin.dir, buildDir, db4oJar, ::executeCommand
                 )
-                
-                // Add db4o if needed
-                if (needsDb4o && db4oJar.exists()) {
-                    antCommand.addAll(listOf("-lib", db4oJar.absolutePath))
-                }
-                
-                if (executeCommand(antCommand, workingDir = plugin.dir) == 0) {
-                    println("Successfully built ${plugin.name}")
-                }
-            } else if (plugin.name == "plugin-Library") {
-                // Special handling for plugin-Library - fix ProgressTracker generics compatibility
-                val sourceFile = File(plugin.dir, "src/plugins/Library/util/SkeletonBTreeMap.java")
-                val tempSourceDir = File(buildDir, "temp-build-files/plugin-Library/src/plugins/Library/util")
-                tempSourceDir.mkdirs()
-                val tempSourceFile = File(tempSourceDir, "SkeletonBTreeMap.java")
-                
-                // Create a patched version with correct generic types
-                val content = sourceFile.readText()
-                    .replace("Map<PullTask<SkeletonNode>, ProgressTracker<SkeletonNode, ?>> ids = null;", 
-                            "Map<PullTask<SkeletonNode>, ProgressTracker<SkeletonNode, ? extends Progress>> ids = null;")
-                    .replace("ProgressTracker<SkeletonNode, ?> ntracker = null;;", 
-                            "ProgressTracker<SkeletonNode, ? extends Progress> ntracker = null;")
-                    .replace("ids = new LinkedHashMap<PullTask<SkeletonNode>, ProgressTracker<SkeletonNode, ?>>();",
-                            "ids = new LinkedHashMap<PullTask<SkeletonNode>, ProgressTracker<SkeletonNode, ? extends Progress>>();")
-                    .replace("import plugins.Library.util.exec.TaskCompleteException;",
-                            "import plugins.Library.util.exec.TaskCompleteException;\nimport plugins.Library.util.exec.Progress;")
-                tempSourceFile.writeText(content)
-                
-                // Copy the patched file to the plugin's source directory temporarily
-                val originalBackup = File(plugin.dir, "src/plugins/Library/util/SkeletonBTreeMap.java.backup")
-                sourceFile.copyTo(originalBackup, overwrite = true)
-                tempSourceFile.copyTo(sourceFile, overwrite = true)
-                
-                try {
+                "plugin-Library" -> LibraryPlugin.buildLibrary(
+                    plugin.dir, buildDir, ::executeCommand
+                )
+                "plugin-SNMP" -> SNMPPlugin.buildSNMP(
+                    plugin.dir, buildDir, ::executeCommand
+                )
+                "plugin-JSTUN" -> JSTUNPlugin.buildJSTUN(
+                    plugin.dir, file("build/deps/wrapper.jar"), ::executeCommand
+                )
+                else -> {
                     // Standard Ant plugin build
+                    println("Building Ant plugin: ${plugin.name}")
                     val antCommand = mutableListOf(
                         "ant", "clean", "dist",
                         "-Dsource-version=8",
@@ -684,98 +515,13 @@ val buildAntPlugins = tasks.register("buildAntPlugins") {
                         "-Dant.file.failonerror=false"
                     )
                     
-                    if (executeCommand(antCommand, workingDir = plugin.dir) == 0) {
-                        println("Successfully built ${plugin.name}")
+                    if (needsDb4o && db4oJar.exists()) {
+                        antCommand.addAll(listOf("-lib", db4oJar.absolutePath))
                     }
-                } finally {
-                    // Always restore the original file
-                    originalBackup.copyTo(sourceFile, overwrite = true)
-                    originalBackup.delete()
-                }
-            } else if (plugin.name == "plugin-SNMP") {
-                // Special handling for plugin-SNMP - fix IOStatisticCollector API compatibility
-                val dataStatsFile = File(plugin.dir, "src/plugins/SNMP/snmplib/DataStatisticsInfo.java")
-                val snmpStarterFile = File(plugin.dir, "src/plugins/SNMP/snmplib/SNMPStarter.java")
-                
-                val tempSourceDir = File(buildDir, "temp-build-files/plugin-SNMP/src/plugins/SNMP/snmplib")
-                tempSourceDir.mkdirs()
-                
-                // Backup original files
-                val dataStatsBackup = File(plugin.dir, "src/plugins/SNMP/snmplib/DataStatisticsInfo.java.backup")
-                val snmpStarterBackup = File(plugin.dir, "src/plugins/SNMP/snmplib/SNMPStarter.java.backup")
-                dataStatsFile.copyTo(dataStatsBackup, overwrite = true)
-                snmpStarterFile.copyTo(snmpStarterBackup, overwrite = true)
-                
-                try {
-                    // Patch DataStatisticsInfo.java - replace getTotalStatistics() with compatible code
-                    val dataStatsContent = dataStatsFile.readText()
-                        .replace(
-                            "int stats[][] = collector.getTotalStatistics();\n\t\tfor (int i = 0 ; i < blocks ; i++)\n\t\t\tres += stats[i][in?1:0];",
-                            "// getTotalStatistics() no longer exists, use getTotalIO() instead\n\t\tlong[] io = collector.getTotalIO();\n\t\tres = (int)(io[in?1:0] / Math.max(1, blocks)); // Approximate per-block average"
-                        )
-                    dataStatsFile.writeText(dataStatsContent)
-                    
-                    // Patch SNMPStarter.java - replace STATISTICS_ENTRIES with fixed value
-                    val snmpStarterContent = snmpStarterFile.readText()
-                        .replace(
-                            "for (int i = 0 ; i < IOStatisticCollector.STATISTICS_ENTRIES ; i++) {",
-                            "// STATISTICS_ENTRIES no longer exists, use fixed value for basic I/O stats\n\t\tfor (int i = 0 ; i < 2 ; i++) { // 0=total, 1=basic stats"
-                        )
-                    snmpStarterFile.writeText(snmpStarterContent)
-                    
-                    // Standard Ant plugin build
-                    val antCommand = mutableListOf(
-                        "ant", "clean", "dist",
-                        "-Dsource-version=8",
-                        "-Dtarget-version=8",
-                        "-Dant.file.failonerror=false"
-                    )
                     
                     if (executeCommand(antCommand, workingDir = plugin.dir) == 0) {
                         println("Successfully built ${plugin.name}")
                     }
-                } finally {
-                    // Always restore original files
-                    dataStatsBackup.copyTo(dataStatsFile, overwrite = true)
-                    snmpStarterBackup.copyTo(snmpStarterFile, overwrite = true)
-                    dataStatsBackup.delete()
-                    snmpStarterBackup.delete()
-                }
-            } else if (plugin.name == "plugin-JSTUN") {
-                // Special handling for plugin-JSTUN - provide Tanuki Wrapper JAR
-                val wrapperJar = file("build/deps/wrapper.jar")
-                
-                // Standard Ant plugin build with wrapper.jar on classpath
-                val antCommand = mutableListOf(
-                    "ant", "clean", "dist",
-                    "-Dsource-version=8",
-                    "-Dtarget-version=8",
-                    "-Dant.file.failonerror=false"
-                )
-                
-                // Add wrapper.jar to classpath if available
-                if (wrapperJar.exists()) {
-                    antCommand.addAll(listOf("-lib", wrapperJar.absolutePath))
-                }
-                
-                if (executeCommand(antCommand, workingDir = plugin.dir) == 0) {
-                    println("Successfully built ${plugin.name}")
-                }
-            } else {
-                // Standard Ant plugin build
-                val antCommand = mutableListOf(
-                    "ant", "clean", "dist",
-                    "-Dsource-version=8",
-                    "-Dtarget-version=8",
-                    "-Dant.file.failonerror=false"
-                )
-                
-                if (needsDb4o && db4oJar.exists()) {
-                    antCommand.addAll(listOf("-lib", db4oJar.absolutePath))
-                }
-                
-                if (executeCommand(antCommand, workingDir = plugin.dir) == 0) {
-                    println("Successfully built ${plugin.name}")
                 }
             }
         }
@@ -857,7 +603,9 @@ tasks.register("cleanAll") {
                 else -> null
             }
             
-            cleanCommand?.let { executeCommand(it, workingDir = plugin.dir, printErrors = false) }
+            cleanCommand?.let { 
+                BuildUtils.executeCommand(it, workingDir = plugin.dir, printErrors = false) 
+            }
         }
     }
 }
@@ -938,7 +686,7 @@ tasks.register("diagnoseBuildIssues") {
         println("   Total plugins: ${allPlugins.size}")
         println("   Gradle plugins: ${gradlePlugins.size}")
         println("   Ant plugins: ${antPlugins.size}")
-        println("   Plugins needing db4o: ${Config.ALL_PLUGINS_NEEDING_DB4O.size}")
+        println("   Plugins needing db4o: ${BuildConfig.ALL_PLUGINS_NEEDING_DB4O.size}")
         
         println("\n4. Available Tasks:")
         println("   ./gradlew buildAll            - Build all plugins (default)")

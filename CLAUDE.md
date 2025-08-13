@@ -8,7 +8,7 @@ This repository is a collection of Freenet plugins organized as Git submodules. 
 
 ## Build System
 
-This repository includes a comprehensive Gradle-based build system that can compile all plugins non-invasively:
+This repository includes a comprehensive, modular Gradle-based build system that can compile all plugins non-invasively:
 
 ### Quick Start
 ```bash
@@ -18,12 +18,14 @@ This repository includes a comprehensive Gradle-based build system that can comp
 ```
 
 ### Architecture
+- **Modular design**: Plugin-specific build logic organized in separate Kotlin files within buildSrc/
 - **Non-invasive**: Zero permanent modifications to plugin source code
 - **Automatic dependency resolution**: Downloads external JARs from Maven Central
 - **Multi-build support**: Handles both Gradle and Ant-based plugins
 - **Fred integration**: Includes Freenet core as submodule for dependencies
 - **Advanced plugin support**: Automatic Gradle wrapper installation and build compatibility fixes
 - **Real db4o integration**: Uses authentic db4o-7.4 source for database functionality
+- **Scalable plugin handling**: Easy to add new plugin-specific build logic without cluttering main build file
 
 ### Available Tasks
 - `./gradlew buildAll` - Build all plugins and collect JARs (default)
@@ -122,6 +124,24 @@ The build system automatically handles:
 - **Tanuki Wrapper**: Downloads and extracts wrapper.jar from official Tanuki Software Community Edition for WrapperManager support
 - **Plugin dependencies**: Proper classpath setup for both Ant and Gradle plugins
 - **Gradle wrappers**: Automatic installation and cleanup for plugins requiring them
+
+### Modular Build System Architecture
+The build system uses a modular design with plugin-specific logic separated into dedicated files:
+
+**buildSrc/ Structure**:
+- `BuildConfig.kt` - Central configuration constants and plugin lists
+- `BuildUtils.kt` - Shared utility functions for patching, downloading, and command execution
+- `PluginInfo.kt` - Data class for plugin metadata
+- `plugins/FreereaderPlugin.kt` - Freereader-specific build logic with Java 8 compatibility
+- `plugins/LibraryPlugin.kt` - Library plugin generics patching and Progress interface handling
+- `plugins/SNMPPlugin.kt` - SNMP plugin IOStatisticCollector API compatibility fixes
+- `plugins/JSTUNPlugin.kt` - JSTUN plugin Tanuki Wrapper integration
+
+**Benefits**:
+- **Maintainable**: Plugin-specific complexity isolated from main build file
+- **Scalable**: Easy to add new plugin handlers without cluttering main build logic
+- **Reusable**: Common utilities shared across all build modules
+- **Clear separation**: Each plugin's unique build requirements clearly documented in its own file
 
 ### Git Configuration
 - All submodules configured with `ignore = all` to ignore build artifacts
