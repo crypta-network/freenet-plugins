@@ -115,3 +115,7 @@ When adding new plugins:
 1. Add as Git submodule in `projects/`
 2. Update plugin lists in `buildSrc/BuildConfig.kt`
 3. Add plugin-specific build logic if needed in `buildSrc/plugins/`
+
+## License
+
+GNU General Public License v2.0 or later
