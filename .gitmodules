@@ -93,6 +93,7 @@
 [submodule "projects/db4o-7.4"]
 	path = projects/db4o-7.4
 	url = https://github.com/xor-freenet/db4o-7.4.git
+	ignore = all
 [submodule "projects/plugin-KeepAlive"]
 	path = projects/plugin-KeepAlive
 	url = https://github.com/hyphanet/plugin-KeepAlive.git
@@ -100,3 +101,5 @@
 [submodule "projects/plugin-sharesite"]
 	path = projects/plugin-sharesite
 	url = https://github.com/hyphanet/plugin-sharesite.git
+	ignore = all
+
