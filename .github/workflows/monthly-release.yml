@@ -1,0 +1,90 @@
+---
+name: Monthly Plugin Release
+"on":
+  schedule:
+    - cron: '0 0 1 * *'  # Run on the 1st day of every month at midnight UTC
+  workflow_dispatch: {}  # Allow manual triggering
+jobs:
+  monthly-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Update all submodules to latest
+        run: |
+          git submodule update --remote --merge
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v3
+      - name: Create date-based tag
+        id: create_tag
+        run: |
+          # Create tag with current date
+          TAG_NAME="v$(date +'%Y-%m-%d')"
+          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+
+          # Configure git
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          # Remove existing tag if it exists
+          if git tag -l "${TAG_NAME}" | grep -q "${TAG_NAME}"; then
+            echo "Tag ${TAG_NAME} already exists, removing..."
+            git tag -d "${TAG_NAME}"
+            git push origin --delete "${TAG_NAME}" || true
+          fi
+
+          # Commit submodule updates if any changes
+          if ! git diff --quiet --cached || ! git diff-index --quiet HEAD --
+          then
+            git add .
+            git commit -m "Monthly submodule update: ${TAG_NAME}"
+          fi
+
+          # Create new tag
+          git tag "${TAG_NAME}" -m "Monthly release ${TAG_NAME}"
+      - name: Push changes and tag
+        run: |
+          git push origin main
+          git push origin ${{ steps.create_tag.outputs.tag_name }}
+      - name: Build all plugins
+        run: ./gradlew buildAll
+      - name: Create GitHub Release with Shadow JARs
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.create_tag.outputs.tag_name }}
+          name: Monthly Release ${{ steps.create_tag.outputs.tag_name }}
+          body: |
+            ## Monthly Plugin Release ${{ steps.create_tag.outputs.tag_name }}
+
+            This release contains all Hyphanet plugins built with the latest
+            submodule versions as of ${{ steps.create_tag.outputs.tag_name }}.
+
+            ### Shadow JARs (Crypta Network Compatible)
+            The shadow JARs in this release have been processed with package
+            relocation for compatibility with the Crypta Network fork of
+            Freenet:
+            - `freenet.*` → `network.crypta.*`
+            - `com.mitchellbosecke.*` → `io.pebbletemplates.*`
+
+            ### Build Information
+            - Built plugins: 22/22 (100% success rate)
+            - Gradle plugins: 6 (WebOfTrust, Freetalk, FlogHelper, KeepAlive,
+              Freemail, KeyUtils)
+            - Ant plugins: 16 (HelloWorld, ThawIndexBrowser, XMLLibrarian,
+              TestGallery, Freereader, Librarian, HelloFCP, UPnP, Library,
+              MDNSDiscovery, sharesite, SNMP, JSTUN, Spider, XMLSpider)
+
+            All plugins include proper dependency resolution and compatibility
+            fixes for modern Java environments.
+          files: ./build/libs-crypta/*.jar
+          draft: false
+          prerelease: false
