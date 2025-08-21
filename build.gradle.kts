@@ -621,7 +621,7 @@ val collectJars = tasks.register("collectJars") {
             }
             
             jarFiles.forEach { jarFile ->
-                val targetName = "${plugin.name}-${jarFile.name}"
+                val targetName = "${plugin.name}.jar"
                 val targetFile = file("${buildLibsDir}/${targetName}")
                 jarFile.copyTo(targetFile, overwrite = true)
                 jarCount++
@@ -723,7 +723,7 @@ tasks.register("buildGradleOnly") {
             }
             
             jarFiles.forEach { jarFile ->
-                val targetName = "${plugin.name}-${jarFile.name}"
+                val targetName = "${plugin.name}.jar"
                 jarFile.copyTo(file("${buildLibsDir}/${targetName}"), overwrite = true)
                 jarCount++
             }
@@ -794,14 +794,16 @@ val createShadowJars = tasks.register("createShadowJars") {
         var successCount = 0
         
         jarFiles.forEach { originalJar ->
-            val shadowJarName = originalJar.nameWithoutExtension + "-shadow.jar"
+            // Extract plugin name from the JAR filename (remove .jar extension)
+            val pluginName = originalJar.nameWithoutExtension
+            val shadowJarName = "${pluginName}.jar"
             val shadowJar = file("${shadowLibsDir}/${shadowJarName}")
             
             println("Processing: ${originalJar.name} -> ${shadowJarName}")
             
             try {
                 // Create a proper ShadowJar task for each JAR
-                val tempShadowTask = tasks.register("tempShadow${originalJar.nameWithoutExtension}", ShadowJar::class.java) {
+                val tempShadowTask = tasks.register("tempShadow${pluginName.replace("-", "")}", ShadowJar::class.java) {
                     archiveFileName.set(shadowJarName)
                     destinationDirectory.set(shadowLibsDir)
                     from(zipTree(originalJar))
