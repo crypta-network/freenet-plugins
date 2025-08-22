@@ -48,10 +48,10 @@ The repository features a comprehensive, modular Gradle-based build system that 
 
 Successfully builds **22/22 plugins** (100% success rate):
 
-### Gradle-based Plugins (6)
-- WebOfTrust, Freetalk, FlogHelper, KeepAlive, Freemail, KeyUtils
+### Gradle-based Plugins (7)
+- WebOfTrust, Freetalk, FlogHelper, KeepAlive, Freemail, KeyUtils, UPnP2
 
-### Ant-based Plugins (16)
+### Ant-based Plugins (15)
 - HelloWorld, ThawIndexBrowser, XMLLibrarian, TestGallery, Freereader
 - Librarian, HelloFCP, UPnP, Library, MDNSDiscovery, sharesite
 - SNMP, JSTUN, Spider, XMLSpider

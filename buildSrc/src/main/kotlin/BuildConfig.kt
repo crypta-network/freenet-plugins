@@ -4,7 +4,7 @@ object BuildConfig {
     const val DB4O_JAR_NAME = "db4o-7.4.jar"
     
     val PLUGINS_NEEDING_WRAPPER = listOf("plugin-WebOfTrust", "plugin-Freetalk")
-    val PLUGINS_NEEDING_JAVA_PATCH_ONLY = listOf("plugin-FlogHelper", "plugin-KeyUtils", "plugin-KeepAlive")
+    val PLUGINS_NEEDING_JAVA_PATCH_ONLY = listOf("plugin-FlogHelper", "plugin-KeyUtils", "plugin-KeepAlive", "plugin-UPnP2")
     val ANT_PLUGINS_NEEDING_DB4O = listOf("plugin-XMLLibrarian", "plugin-XMLSpider")
     val ANT_PLUGINS_NEEDING_DB4O_JAR_ONLY = listOf("plugin-Freereader")
     val GRADLE_PLUGINS_NEEDING_DB4O = listOf("plugin-WebOfTrust", "plugin-Freetalk")

@@ -103,3 +103,7 @@
 	url = https://github.com/hyphanet/plugin-sharesite.git
 	ignore = all
 
+[submodule "projects/plugin-UPnP2"]
+	path = projects/plugin-UPnP2
+	url = https://github.com/hyphanet/plugin-UPnP2.git
+	ignore = all
